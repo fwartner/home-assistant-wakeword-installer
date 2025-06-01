@@ -223,7 +223,7 @@ See [CHANGELOG.md](CHANGELOG.md) for a list of changes and releases.
 - 📚 [Documentation](https://github.com/fwartner/home-assistant-wakeword-installer/blob/main/README.md)
 - 🐛 [Issue Tracker](https://github.com/fwartner/home-assistant-wakeword-installer/issues)
 - 💬 [Home Assistant Community](https://community.home-assistant.io/)
-- 📧 [Contact](mailto:hi@fwartner.com)
+- 📧 [Contact](mailto:florian@wartner.io)
 
 ### Reporting Issues
 
