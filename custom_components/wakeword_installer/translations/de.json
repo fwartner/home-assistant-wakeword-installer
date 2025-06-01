@@ -1,0 +1,132 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Wakeword-Repository hinzufügen",
+        "description": "Fügen Sie ein GitHub-Repository mit Wakeword-Dateien hinzu.",
+        "data": {
+          "repo_name": "Repository-Name",
+          "repo_url": "Repository-URL"
+        }
+      },
+      "select_languages": {
+        "title": "Sprachen auswählen",
+        "description": "Wählen Sie Sprachen zur Installation aus {repo_name}.\n\nVerfügbare Sprachen: {available_languages}",
+        "data": {
+          "selected_languages": "Zu installierende Sprachen"
+        }
+      },
+      "add_more": {
+        "title": "Weitere Repositories hinzufügen",
+        "description": "Aktuelle Repositories:\n{current_repos}\n\nMöchten Sie ein weiteres Repository hinzufügen?",
+        "data": {
+          "add_another": "Weiteres Repository hinzufügen"
+        }
+      },
+      "install_complete": {
+        "title": "Installation abgeschlossen",
+        "description": "{message}"
+      }
+    },
+    "error": {
+      "cannot_connect": "Verbindung zum Repository nicht möglich. Bitte überprüfen Sie die URL und Ihre Internetverbindung.",
+      "invalid_repo": "Ungültiges Repository oder keine Wakeword-Dateien gefunden. Stellen Sie sicher, dass das Repository .tflite-Dateien in Sprachunterverzeichnissen enthält.",
+      "no_languages_found": "Keine Sprachordner im Repository gefunden. Das Repository sollte Unterverzeichnisse mit .tflite-Dateien enthalten.",
+      "unknown": "Ein unerwarteter Fehler ist aufgetreten. Bitte versuchen Sie es später erneut."
+    },
+    "abort": {
+      "already_configured": "Dieses Repository ist bereits konfiguriert"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Wakeword-Repositories verwalten"
+      },
+      "manage_repos": {
+        "title": "Repository-Verwaltung",
+        "description": "Aktuelle Repositories:\n{repo_list}\n\nWählen Sie eine Aktion:",
+        "data": {
+          "action": "Aktion",
+          "repo_to_remove": "Repository zum Entfernen"
+        }
+      },
+      "add_repo": {
+        "title": "Neues Repository hinzufügen",
+        "description": "Fügen Sie ein neues GitHub-Repository mit Wakeword-Dateien hinzu.",
+        "data": {
+          "repo_name": "Repository-Name",
+          "repo_url": "Repository-URL"
+        }
+      },
+      "install_complete": {
+        "title": "Installation abgeschlossen",
+        "description": "{message}"
+      }
+    },
+    "error": {
+      "cannot_connect": "Verbindung zum Repository nicht möglich. Bitte überprüfen Sie die URL und Ihre Internetverbindung.",
+      "invalid_repo": "Ungültiges Repository oder keine Wakeword-Dateien gefunden. Stellen Sie sicher, dass das Repository .tflite-Dateien in Sprachunterverzeichnissen enthält.",
+      "no_languages_found": "Keine Sprachordner im Repository gefunden. Das Repository sollte Unterverzeichnisse mit .tflite-Dateien enthalten.",
+      "unknown": "Ein unerwarteter Fehler ist aufgetreten. Bitte versuchen Sie es später erneut."
+    }
+  },
+  "selector": {
+    "action": {
+      "options": {
+        "add": "Repository hinzufügen",
+        "remove": "Repository entfernen",
+        "install": "Wakewords installieren",
+        "done": "Fertig"
+      }
+    }
+  },
+  "services": {
+    "install_wakewords": {
+      "name": "Wakewords installieren",
+      "description": "Installiert Wakeword-Dateien aus konfigurierten Repositories.",
+      "fields": {
+        "repository": {
+          "name": "Repository",
+          "description": "Name des Repositories für die Installation (optional, installiert von allen, wenn nicht angegeben)"
+        },
+        "languages": {
+          "name": "Sprachen",
+          "description": "Bestimmte Sprachen zur Installation (optional, installiert ausgewählte Sprachen, wenn nicht angegeben)"
+        }
+      }
+    },
+    "remove_wakewords": {
+      "name": "Wakewords entfernen",
+      "description": "Entfernt installierte Wakeword-Dateien für bestimmte Sprachen.",
+      "fields": {
+        "repository": {
+          "name": "Repository",
+          "description": "Name des Repositories, aus dem Wakewords entfernt werden sollen"
+        },
+        "languages": {
+          "name": "Sprachen",
+          "description": "Zu entfernende Sprachen"
+        }
+      }
+    },
+    "remove_repository_wakewords": {
+      "name": "Repository-Wakewords entfernen",
+      "description": "Entfernt alle Wakeword-Dateien eines Repositories.",
+      "fields": {
+        "repository": {
+          "name": "Repository",
+          "description": "Name des Repositories, aus dem alle Wakewords entfernt werden sollen"
+        }
+      }
+    },
+    "list_installed": {
+      "name": "Installierte Wakewords auflisten",
+      "description": "Zeigt eine Liste der derzeit installierten Wakeword-Dateien an."
+    },
+    "refresh_repositories": {
+      "name": "Repositories aktualisieren",
+      "description": "Aktualisiert verfügbare Sprachen aus allen konfigurierten Repositories."
+    }
+  }
+}

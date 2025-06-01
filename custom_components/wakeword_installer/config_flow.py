@@ -231,6 +231,17 @@ class WakewordInstallerOptionsFlow(config_entries.OptionsFlow):
         if repo_to_remove and repo_to_remove != "No repositories configured":
             # Extract repo name from the display string
             repo_name = repo_to_remove.split(" (")[0]
+            
+            # Remove all wakeword files associated with this repository
+            try:
+                repo_manager = RepositoryManager(self.hass)
+                await repo_manager.remove_repository_wakewords(repo_name)
+                await repo_manager.close()
+                _LOGGER.info(f"Removed all wakeword files for repository: {repo_name}")
+            except Exception as e:
+                _LOGGER.error(f"Failed to remove wakeword files for {repo_name}: {e}")
+            
+            # Remove repository from configuration
             self.repositories = [repo for repo in self.repositories if repo[CONF_REPO_NAME] != repo_name]
             
             # Update config entry
@@ -251,7 +262,8 @@ class WakewordInstallerOptionsFlow(config_entries.OptionsFlow):
             try:
                 await repo_manager.install_wakewords(
                     repo[CONF_REPO_URL],
-                    repo[CONF_SELECTED_LANGUAGES]
+                    repo[CONF_SELECTED_LANGUAGES],
+                    repo[CONF_REPO_NAME]
                 )
             except Exception as e:
                 _LOGGER.error(f"Failed to install wakewords from {repo[CONF_REPO_NAME]}: {e}")

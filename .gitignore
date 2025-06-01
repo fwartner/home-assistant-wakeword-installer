@@ -1,88 +1,188 @@
-.history
-/.history
-# Hide some OS X stuff
-.DS_Store
-.AppleDouble
-.LSOverride
-Icon
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
 
-# Thumbnails
-._*
-tests
-config
+# C extensions
+*.so
 
-.history
-.ruff**
-**/__pycache__
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
 
-custom_components/hacs
-# custom_components/mail_and_packages/.backup/__init__.py
-# custom_components/mail_and_packages/.backup/camera.py
-# custom_components/mail_and_packages/.backup/manifest.json
-# custom_components/mail_and_packages/.backup/sensor.py
-# custom_components/mail_and_packages/images/*
-notes.txt
+# PyInstaller
+*.manifest
+*.spec
 
-# Test files
-ra_0_mailerProvidedImage0
-mailerProvidedImage0
-
-# pytest
-.pytest_cache
-.cache
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
 
 # Unit test / coverage reports
-.coverage
-.tox
-coverage.xml
-nosetests.xml
 htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
 test-reports/
 test-results.xml
 test-output.xml
 
 # Translations
 *.mo
+*.pot
 
-# Mr Developer
-.mr.developer.cfg
-.project
-.pydevproject
+# Django stuff:
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
 
+# Flask stuff:
+instance/
+.webassets-cache
+
+# Scrapy stuff:
+.scrapy
+
+# Sphinx documentation
+docs/_build/
+
+# PyBuilder
+target/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# IPython
+profile_default/
+ipython_config.py
+
+# pyenv
 .python-version
 
-# emacs auto backups
-*~
-*#
-*.orig
+# pipenv
+Pipfile*
 
-# venv stuff
+# PEP 582
+__pypackages__/
+
+# Celery stuff
+celerybeat-schedule
+celerybeat.pid
+
+# SageMath parsed files
+*.sage.py
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
 pyvenv.cfg
 pip-selfcheck.json
-venv
-.venv
-Pipfile*
-share/*
-scripts/*
-!/scripts/publish.sh
 
-# vimmy stuff
-*.swp
-*.swo
-tags
-ctags.tmp
+# Spyder project settings
+.spyderproject
+.spyproject
 
-# vagrant stuff
-virtualization/vagrant/setup_done
-virtualization/vagrant/.vagrant
-virtualization/vagrant/config
+# Rope project settings
+.ropeproject
 
-# Visual Studio Code
+# mkdocs documentation
+/site
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre type checker
+.pyre/
+
+# IDE
 .vscode/*
 !.vscode/cSpell.json
 !.vscode/extensions.json
 !.vscode/tasks.json
+.idea/
+*.swp
+*.swo
+*~
+*#
+*.orig
+tags
+ctags.tmp
 
-# Typing
-.mypy_cache
-*.pyc
+# OS
+.DS_Store
+.DS_Store?
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Icon
+
+# Project specific
+custom_components/wakeword_installer/_version.py
+custom_components/hacs
+bandit-report.json
+safety-report.json
+notes.txt
+.history
+/.history
+.ruff**
+
+# Test files
+ra_0_mailerProvidedImage0
+mailerProvidedImage0
+config/
+
+# Temporary files
+*.tmp
+*.temp
+.temp/
+.tmp/
+
+# Vagrant
+virtualization/vagrant/setup_done
+virtualization/vagrant/.vagrant
+virtualization/vagrant/config
+
+# Scripts (keep publish script)
+scripts/*
+!/scripts/publish.sh
+
+./claude
+.claude
+CLAUDE.md

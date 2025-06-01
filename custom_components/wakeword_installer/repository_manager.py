@@ -60,12 +60,16 @@ class RepositoryManager:
             _LOGGER.error(f"Error parsing repository contents: {e}")
             raise HomeAssistantError(f"Invalid repository structure: {e}")
 
-    async def install_wakewords(self, repo_url: str, selected_languages: list[str]) -> None:
+    async def install_wakewords(self, repo_url: str, selected_languages: list[str], repo_name: str | None = None) -> None:
         """Install wakeword files from repository for selected languages."""
         try:
             # Create installation directory if it doesn't exist
             install_path = Path(WAKEWORD_INSTALL_PATH)
             install_path.mkdir(parents=True, exist_ok=True)
+            
+            # Extract repository name from URL if not provided
+            if repo_name is None:
+                repo_name = self._extract_repo_name(repo_url)
             
             # Download repository as zip
             download_url = self._get_download_url(repo_url)
@@ -77,7 +81,7 @@ class RepositoryManager:
                 await self._download_file(download_url, zip_path)
                 
                 # Extract and install files
-                await self._extract_and_install(zip_path, selected_languages, install_path)
+                await self._extract_and_install(zip_path, selected_languages, install_path, repo_name)
                 
             _LOGGER.info(f"Successfully installed wakewords for languages: {selected_languages}")
             
@@ -85,23 +89,61 @@ class RepositoryManager:
             _LOGGER.error(f"Failed to install wakewords: {e}")
             raise HomeAssistantError(f"Installation failed: {e}")
 
-    async def remove_wakewords(self, repo_name: str, languages: list[str]) -> None:
-        """Remove installed wakeword files for specific languages."""
+    def _extract_repo_name(self, repo_url: str) -> str:
+        """Extract repository name from URL."""
+        # Handle different GitHub URL formats
+        if repo_url.startswith("https://github.com/"):
+            repo_path = repo_url.replace("https://github.com/", "")
+        elif repo_url.startswith("github.com/"):
+            repo_path = repo_url.replace("github.com/", "")
+        else:
+            return "unknown-repo"
+        
+        # Remove .git suffix if present
+        if repo_path.endswith(".git"):
+            repo_path = repo_path[:-4]
+        
+        # Remove trailing slash and get just the repo name
+        repo_path = repo_path.rstrip("/")
+        return repo_path.split("/")[-1] if "/" in repo_path else repo_path
+
+    async def remove_wakewords(self, repo_name: str, languages: list[str] | None = None) -> None:
+        """Remove installed wakeword files for specific languages or all files from a repository.
+        
+        Args:
+            repo_name: Name of the repository
+            languages: List of languages to remove. If None, removes all files from the repository.
+        """
         try:
             install_path = Path(WAKEWORD_INSTALL_PATH)
             
-            for language in languages:
-                language_files = install_path.glob(f"*{repo_name}*{language}*.tflite")
-                for file_path in language_files:
+            if languages is None:
+                # Remove all files from this repository
+                repo_files = install_path.glob(f"*{repo_name}*.tflite")
+                for file_path in repo_files:
                     try:
                         file_path.unlink()
                         _LOGGER.info(f"Removed wakeword file: {file_path}")
                     except OSError as e:
                         _LOGGER.warning(f"Failed to remove file {file_path}: {e}")
+            else:
+                # Remove files for specific languages
+                for language in languages:
+                    language_files = install_path.glob(f"{language}_*{repo_name}*.tflite")
+                    for file_path in language_files:
+                        try:
+                            file_path.unlink()
+                            _LOGGER.info(f"Removed wakeword file: {file_path}")
+                        except OSError as e:
+                            _LOGGER.warning(f"Failed to remove file {file_path}: {e}")
                         
         except Exception as e:
             _LOGGER.error(f"Failed to remove wakewords: {e}")
             raise HomeAssistantError(f"Removal failed: {e}")
+
+    async def remove_repository_wakewords(self, repo_name: str) -> None:
+        """Remove all wakeword files associated with a repository."""
+        await self.remove_wakewords(repo_name, languages=None)
 
     def _convert_to_api_url(self, repo_url: str) -> str:
         """Convert GitHub repository URL to API URL."""
@@ -152,7 +194,7 @@ class RepositoryManager:
         except aiohttp.ClientError as e:
             raise HomeAssistantError(f"Download failed: {e}")
 
-    async def _extract_and_install(self, zip_path: Path, selected_languages: list[str], install_path: Path) -> None:
+    async def _extract_and_install(self, zip_path: Path, selected_languages: list[str], install_path: Path, repo_name: str) -> None:
         """Extract zip file and install tflite files for selected languages."""
         def extract_sync():
             with zipfile.ZipFile(zip_path, 'r') as zip_ref:
@@ -178,7 +220,7 @@ class RepositoryManager:
                         # Extract to temporary location
                         temp_file = zip_ref.extract(tflite_file)
                         
-                        # Generate new filename with language prefix
+                        # Generate new filename with repo name, language, and original name
                         original_name = Path(tflite_file).name
                         
                         # Try to determine language from path
@@ -189,7 +231,8 @@ class RepositoryManager:
                                 language = part
                                 break
                         
-                        new_name = f"{language}_{original_name}"
+                        # Format: {repo_name}_{language}_{original_name}
+                        new_name = f"{repo_name}_{language}_{original_name}"
                         destination = install_path / new_name
                         
                         # Move file to installation directory

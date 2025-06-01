@@ -19,7 +19,7 @@ install_wakewords:
 
 remove_wakewords:
   name: Remove Wakewords
-  description: Remove installed wakeword files
+  description: Remove installed wakeword files for specific languages
   fields:
     repository:
       name: Repository
@@ -35,6 +35,17 @@ remove_wakewords:
         select:
           multiple: true
           options: []
+
+remove_repository_wakewords:
+  name: Remove Repository Wakewords
+  description: Remove all wakeword files from a repository
+  fields:
+    repository:
+      name: Repository
+      description: Name of the repository to remove all wakewords from
+      required: true
+      selector:
+        text:
 
 list_installed:
   name: List Installed Wakewords
