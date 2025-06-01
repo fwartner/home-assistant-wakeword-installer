@@ -1,0 +1,84 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Add Wakeword Repository",
+        "description": "Add a GitHub repository containing wakeword files.",
+        "data": {
+          "repo_name": "Repository Name",
+          "repo_url": "Repository URL"
+        }
+      },
+      "select_languages": {
+        "title": "Select Languages",
+        "description": "Select languages to install from {repo_name}.\n\nAvailable languages: {available_languages}",
+        "data": {
+          "selected_languages": "Languages to Install"
+        }
+      },
+      "add_more": {
+        "title": "Add More Repositories",
+        "description": "Current repositories:\n{current_repos}\n\nWould you like to add another repository?",
+        "data": {
+          "add_another": "Add Another Repository"
+        }
+      },
+      "install_complete": {
+        "title": "Installation Complete",
+        "description": "{message}"
+      }
+    },
+    "error": {
+      "cannot_connect": "Unable to connect to the repository",
+      "invalid_repo": "Invalid repository or no tflite files found",
+      "no_languages_found": "No language folders found in repository",
+      "unknown": "Unexpected error occurred"
+    },
+    "abort": {
+      "already_configured": "This repository is already configured"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Manage Wakeword Repositories"
+      },
+      "manage_repos": {
+        "title": "Repository Management",
+        "description": "Current repositories:\n{repo_list}\n\nSelect an action:",
+        "data": {
+          "action": "Action",
+          "repo_to_remove": "Repository to Remove"
+        }
+      },
+      "add_repo": {
+        "title": "Add New Repository",
+        "description": "Add a new GitHub repository containing wakeword files.",
+        "data": {
+          "repo_name": "Repository Name",
+          "repo_url": "Repository URL"
+        }
+      },
+      "install_complete": {
+        "title": "Installation Complete",
+        "description": "{message}"
+      }
+    },
+    "error": {
+      "cannot_connect": "Unable to connect to the repository",
+      "invalid_repo": "Invalid repository or no tflite files found",
+      "no_languages_found": "No language folders found in repository",
+      "unknown": "Unexpected error occurred"
+    }
+  },
+  "selector": {
+    "action": {
+      "options": {
+        "add": "Add Repository",
+        "remove": "Remove Repository", 
+        "install": "Install Wakewords",
+        "done": "Done"
+      }
+    }
+  }
+}

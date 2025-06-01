@@ -1,0 +1,43 @@
+name: Release
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - 'dev'
+      - 'main'
+    paths:
+      - 'custom_components/**'
+  #pull_request:
+  #  branches:
+  #    - 'main'
+  #  types:
+  #    - closed
+  #  paths:
+  #    - 'custom_components/**'
+
+jobs:
+  semantic_release:
+    #if: (github.event_name == 'pull_request' && github.event.action == 'closed') || github.ref == 'refs/heads/dev'
+    name: "Semantic Release"
+    needs: [lint, validate]
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: write
+    steps:
+      - name: "Checkout the repository"
+        uses: "actions/checkout@v4"
+        with:
+          fetch-depth: 0
+
+      - name: "Setup Node"
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - run: npm init --yes
+      - run: npm install semantic-release @semantic-release/changelog @semantic-release/git @semantic-release/exec conventional-changelog-conventionalcommits --save-dev
+      - run: npx semantic-release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}

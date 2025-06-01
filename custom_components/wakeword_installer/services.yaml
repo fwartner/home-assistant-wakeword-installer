@@ -1,0 +1,47 @@
+install_wakewords:
+  name: Install Wakewords
+  description: Install wakeword files from configured repositories
+  fields:
+    repository:
+      name: Repository
+      description: Name of the repository to install from (optional, installs from all if not specified)
+      required: false
+      selector:
+        text:
+    languages:
+      name: Languages
+      description: Specific languages to install (optional, installs selected languages if not specified)
+      required: false
+      selector:
+        select:
+          multiple: true
+          options: []
+
+remove_wakewords:
+  name: Remove Wakewords
+  description: Remove installed wakeword files
+  fields:
+    repository:
+      name: Repository
+      description: Name of the repository to remove wakewords from
+      required: true
+      selector:
+        text:
+    languages:
+      name: Languages
+      description: Languages to remove
+      required: true
+      selector:
+        select:
+          multiple: true
+          options: []
+
+list_installed:
+  name: List Installed Wakewords
+  description: Get list of currently installed wakeword files
+  fields: {}
+
+refresh_repositories:
+  name: Refresh Repositories
+  description: Refresh available languages from all configured repositories
+  fields: {}
