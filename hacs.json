@@ -4,7 +4,6 @@
     "filename": "wakeword_installer.zip",
     "render_readme": true,
     "homeassistant": "2024.1.0",
-    "iot_class": "Cloud Polling",
     "zip_release": true,
     "hide_default_branch": false
 }

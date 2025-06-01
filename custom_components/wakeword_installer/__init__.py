@@ -16,6 +16,8 @@ from .repository_manager import RepositoryManager
 
 _LOGGER = logging.getLogger(__name__)
 
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
+
 PLATFORMS: list[str] = []
 
 SERVICE_INSTALL_WAKEWORDS = "install_wakewords"
