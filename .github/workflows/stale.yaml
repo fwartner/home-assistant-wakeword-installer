@@ -27,4 +27,3 @@ jobs:
         stale-pr-label: 'Stale'
         only-labels: 'needs information'
         days-before-stale: 14
-        exempt-assignees: "Disane87"
