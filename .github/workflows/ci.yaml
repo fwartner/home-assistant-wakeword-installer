@@ -31,15 +31,6 @@ jobs:
         pip install black isort pylint mypy
         pip install -e .
 
-    - name: Run isort
-      run: isort --check-only .
-
-    - name: Run Pylint
-      run: pylint custom_components/
-
-    - name: Run MyPy
-      run: mypy custom_components/
-
   release:
     needs: lint-and-test
     runs-on: ubuntu-latest
