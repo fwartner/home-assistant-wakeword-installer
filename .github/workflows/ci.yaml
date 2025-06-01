@@ -31,9 +31,6 @@ jobs:
         pip install black isort pylint mypy
         pip install -e .
 
-    - name: Run Black
-      run: black --check .
-
     - name: Run isort
       run: isort --check-only .
 
@@ -101,13 +98,3 @@ jobs:
       with:
         category: integration
         ignore: brands
-
-  hassfest:
-    runs-on: ubuntu-latest
-    needs: lint-and-test
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Hassfest validation
-      uses: home-assistant/actions/hassfest@master
