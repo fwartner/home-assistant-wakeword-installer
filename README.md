@@ -25,7 +25,7 @@ A powerful Home Assistant integration that simplifies the management and install
 ### HACS (Recommended)
 
 1. Open HACS in your Home Assistant instance
-2. Go to "Integrations" 
+2. Go to "Integrations"
 3. Click the three dots in the top right corner
 4. Select "Custom repositories"
 5. Add `https://github.com/fwartner/home-assistant-wakeword-installer` as repository

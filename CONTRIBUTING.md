@@ -106,13 +106,13 @@ pytest -v
 ```python
 async def get_available_languages(self, repo_url: str) -> list[str]:
     """Get available language folders from a GitHub repository.
-    
+
     Args:
         repo_url: The GitHub repository URL.
-        
+
     Returns:
         A list of available language folder names.
-        
+
     Raises:
         HomeAssistantError: If the repository cannot be accessed.
     """
