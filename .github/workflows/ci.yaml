@@ -19,11 +19,11 @@ jobs:
       matrix:
         include:
           - python-version: "3.12"
+            homeassistant-version: "2025.1.4"
+          - python-version: "3.13"
             homeassistant-version: "2025.3.4"
-          - python-version: "3.12"
+          - python-version: "3.13"
             homeassistant-version: "2025.12.5"
-          - python-version: "3.12"
-            homeassistant-version: "2026.2.3"
           - python-version: "3.13"
             homeassistant-version: "2026.2.3"
     steps:
@@ -66,7 +66,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
-        python-version: '3.12'
+        python-version: '3.13'
 
     - name: Configure Git
       run: |
