@@ -23,7 +23,6 @@ _LOGGER = logging.getLogger(__name__)
 
 STEP_USER_DATA_SCHEMA = vol.Schema(
     {
-        vol.Required(CONF_REPO_NAME): str,
         vol.Required(CONF_REPO_URL): str,
     }
 )
@@ -51,16 +50,18 @@ class WakewordInstallerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         errors = {}
 
+        repo_url = user_input[CONF_REPO_URL].strip()
         repo_manager = RepositoryManager(self.hass)
         try:
-            languages = await repo_manager.get_available_languages(user_input[CONF_REPO_URL])
+            repo_name = repo_manager._extract_repo_name(repo_url)
+            languages = await repo_manager.get_available_languages(repo_url)
 
             if not languages:
                 errors["base"] = "no_languages_found"
             else:
                 self.current_repo = {
-                    CONF_REPO_NAME: user_input[CONF_REPO_NAME],
-                    CONF_REPO_URL: user_input[CONF_REPO_URL],
+                    CONF_REPO_NAME: repo_name,
+                    CONF_REPO_URL: repo_url,
                 }
                 self.available_languages = languages
                 return await self.async_step_select_languages()
@@ -199,14 +200,16 @@ class WakewordInstallerOptionsFlow(config_entries.OptionsFlow):
             )
 
         errors = {}
+        repo_url = user_input[CONF_REPO_URL].strip()
         repo_manager = RepositoryManager(self.hass)
         try:
-            languages = await repo_manager.get_available_languages(user_input[CONF_REPO_URL])
+            repo_name = repo_manager._extract_repo_name(repo_url)
+            languages = await repo_manager.get_available_languages(repo_url)
 
             if languages:
                 new_repo = {
-                    CONF_REPO_NAME: user_input[CONF_REPO_NAME],
-                    CONF_REPO_URL: user_input[CONF_REPO_URL],
+                    CONF_REPO_NAME: repo_name,
+                    CONF_REPO_URL: repo_url,
                     CONF_SELECTED_LANGUAGES: languages
                 }
                 self.repositories.append(new_repo)

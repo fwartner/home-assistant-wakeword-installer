@@ -69,6 +69,7 @@ def mock_session() -> AsyncMock:
 def github_api_response() -> list[dict]:
     """Sample GitHub API response for repository contents."""
     return [
+        {"name": ".github", "type": "dir"},
         {"name": "en", "type": "dir"},
         {"name": "de", "type": "dir"},
         {"name": "fr", "type": "dir"},

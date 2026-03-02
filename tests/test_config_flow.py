@@ -45,12 +45,12 @@ class TestConfigFlowUser:
         ) as mock_rm_cls:
             mock_rm = MagicMock()
             mock_rm.get_available_languages = AsyncMock(return_value=["en", "de", "fr"])
+            mock_rm._extract_repo_name = MagicMock(return_value="wakewords")
             mock_rm.close = AsyncMock()
             mock_rm_cls.return_value = mock_rm
 
             result = await flow.async_step_user(
                 user_input={
-                    CONF_REPO_NAME: "test-repo",
                     CONF_REPO_URL: "https://github.com/test/wakewords",
                 }
             )
@@ -59,6 +59,8 @@ class TestConfigFlowUser:
 
         assert result["type"] == "form"
         assert result["step_id"] == "select_languages"
+        # Verify repo name was auto-extracted, not user-provided
+        assert flow.current_repo[CONF_REPO_NAME] == "wakewords"
 
     async def test_empty_languages_shows_error(self) -> None:
         flow = WakewordInstallerConfigFlow()
@@ -69,12 +71,12 @@ class TestConfigFlowUser:
         ) as mock_rm_cls:
             mock_rm = MagicMock()
             mock_rm.get_available_languages = AsyncMock(return_value=[])
+            mock_rm._extract_repo_name = MagicMock(return_value="wakewords")
             mock_rm.close = AsyncMock()
             mock_rm_cls.return_value = mock_rm
 
             result = await flow.async_step_user(
                 user_input={
-                    CONF_REPO_NAME: "test-repo",
                     CONF_REPO_URL: "https://github.com/test/wakewords",
                 }
             )
@@ -92,13 +94,13 @@ class TestConfigFlowUser:
             "custom_components.wakeword_installer.config_flow.RepositoryManager"
         ) as mock_rm_cls:
             mock_rm = MagicMock()
+            mock_rm._extract_repo_name = MagicMock(return_value="wakewords")
             mock_rm.get_available_languages = AsyncMock(side_effect=Exception("boom"))
             mock_rm.close = AsyncMock()
             mock_rm_cls.return_value = mock_rm
 
             result = await flow.async_step_user(
                 user_input={
-                    CONF_REPO_NAME: "test-repo",
                     CONF_REPO_URL: "https://github.com/test/wakewords",
                 }
             )
@@ -284,13 +286,13 @@ class TestOptionsFlowAddRepo:
         ) as mock_rm_cls:
             mock_rm = MagicMock()
             mock_rm.get_available_languages = AsyncMock(return_value=["en", "de"])
+            mock_rm._extract_repo_name = MagicMock(return_value="new-repo")
             mock_rm.close = AsyncMock()
             mock_rm_cls.return_value = mock_rm
 
             result = await flow.async_step_add_repo(
                 user_input={
-                    CONF_REPO_NAME: "new-repo",
-                    CONF_REPO_URL: "https://github.com/t/r",
+                    CONF_REPO_URL: "https://github.com/t/new-repo",
                 }
             )
 

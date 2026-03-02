@@ -50,7 +50,9 @@ class RepositoryManager:
                 contents = await response.json()
 
                 languages = [
-                    item["name"] for item in contents if item["type"] == "dir"
+                    item["name"]
+                    for item in contents
+                    if item["type"] == "dir" and not item["name"].startswith(".")
                 ]
                 return sorted(languages)
 
@@ -78,6 +80,9 @@ class RepositoryManager:
 
             if repo_name is None:
                 repo_name = self._extract_repo_name(repo_url)
+            # Safety: if repo_name looks like a URL, extract just the name
+            if "/" in repo_name:
+                repo_name = self._extract_repo_name(repo_name)
 
             download_url = self._get_download_url(repo_url)
 
