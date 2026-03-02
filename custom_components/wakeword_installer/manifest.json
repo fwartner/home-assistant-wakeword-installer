@@ -9,5 +9,5 @@
     "iot_class": "local_polling",
     "issue_tracker": "https://github.com/fwartner/home-assistant-wakeword-installer/issues",
     "requirements": ["aiohttp", "aiofiles"],
-    "version": "1.0.0"
+    "version": "1.1.0"
 }

@@ -7,8 +7,8 @@ from typing import Any
 import voluptuous as vol
 
 from homeassistant import config_entries
+from homeassistant.config_entries import ConfigFlowResult
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.data_entry_flow import FlowResult
 from homeassistant.exceptions import HomeAssistantError
 import homeassistant.helpers.config_validation as cv
 
@@ -38,7 +38,7 @@ class WakewordInstallerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         """Handle the initial step."""
         if user_input is None:
             return self.async_show_form(
@@ -76,7 +76,7 @@ class WakewordInstallerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_select_languages(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         """Handle language selection step."""
         if user_input is None:
             language_schema = vol.Schema({
@@ -103,7 +103,7 @@ class WakewordInstallerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_add_more(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         """Ask if user wants to add more repositories."""
         if user_input is None:
             return self.async_show_form(
@@ -131,26 +131,24 @@ class WakewordInstallerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         config_entry: config_entries.ConfigEntry,
     ) -> WakewordInstallerOptionsFlow:
         """Get the options flow for this handler."""
-        return WakewordInstallerOptionsFlow(config_entry)
+        return WakewordInstallerOptionsFlow()
 
 
 class WakewordInstallerOptionsFlow(config_entries.OptionsFlow):
     """Handle options flow for Wakeword Installer."""
 
-    def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
-        """Initialize options flow."""
-        self.config_entry = config_entry
-        self.repositories = config_entry.data.get(CONF_REPOSITORIES, [])
-
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         """Manage the options."""
+        self.repositories = list(
+            self.config_entry.data.get(CONF_REPOSITORIES, [])
+        )
         return await self.async_step_manage_repos()
 
     async def async_step_manage_repos(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         """Manage repositories."""
         if user_input is None:
             repo_list = [f"{repo[CONF_REPO_NAME]} ({repo[CONF_REPO_URL]})" for repo in self.repositories]
@@ -182,7 +180,7 @@ class WakewordInstallerOptionsFlow(config_entries.OptionsFlow):
 
     async def async_step_add_repo(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         """Add a new repository."""
         if user_input is None:
             return self.async_show_form(
@@ -225,7 +223,7 @@ class WakewordInstallerOptionsFlow(config_entries.OptionsFlow):
 
     async def async_step_remove_repo(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         """Remove a repository."""
         repo_to_remove = user_input.get("repo_to_remove")
         if repo_to_remove and repo_to_remove != "No repositories configured":
@@ -254,7 +252,7 @@ class WakewordInstallerOptionsFlow(config_entries.OptionsFlow):
 
     async def async_step_install_wakewords(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         """Install wakewords from repositories."""
         repo_manager = RepositoryManager(self.hass)
         

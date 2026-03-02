@@ -245,7 +245,7 @@ class RepositoryManager:
                         _LOGGER.warning(f"Failed to install {tflite_file}: {e}")
         
         # Run the synchronous extraction in a thread
-        await asyncio.get_event_loop().run_in_executor(None, extract_sync)
+        await self.hass.async_add_executor_job(extract_sync)
 
     async def get_installed_wakewords(self) -> dict[str, list[str]]:
         """Get list of currently installed wakeword files organized by language."""
