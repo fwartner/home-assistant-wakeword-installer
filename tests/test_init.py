@@ -74,6 +74,25 @@ class TestAsyncSetupEntry:
             mock_config_entry, []
         )
 
+    async def test_auto_installs_wakewords_on_setup(
+        self, mock_hass: MagicMock, mock_config_entry: MagicMock
+    ) -> None:
+        """Wakewords should be automatically installed when entry is set up."""
+        with patch("custom_components.wakeword_installer.RepositoryManager"):
+            await async_setup_entry(mock_hass, mock_config_entry)
+
+        # async_create_task should have been called with the install coroutine
+        mock_hass.async_create_task.assert_called_once()
+
+    async def test_no_auto_install_with_empty_repos(
+        self, mock_hass: MagicMock, mock_empty_config_entry: MagicMock
+    ) -> None:
+        """No auto-install when there are no repositories configured."""
+        with patch("custom_components.wakeword_installer.RepositoryManager"):
+            await async_setup_entry(mock_hass, mock_empty_config_entry)
+
+        mock_hass.async_create_task.assert_not_called()
+
 
 @pytest.mark.asyncio
 class TestAsyncUnloadEntry:

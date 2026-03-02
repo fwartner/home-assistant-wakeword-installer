@@ -56,7 +56,42 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         _register_services(hass)
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+
+    # Automatically install wakewords from all configured repositories
+    repositories = entry.data.get(CONF_REPOSITORIES, [])
+    if repositories:
+        hass.async_create_task(_async_install_wakewords(hass, repositories))
+
     return True
+
+
+async def _async_install_wakewords(
+    hass: HomeAssistant, repositories: list[dict]
+) -> None:
+    """Install wakewords from configured repositories in the background."""
+    repo_manager = RepositoryManager(hass)
+    try:
+        for repo in repositories:
+            try:
+                languages = repo.get("selected_languages", [])
+                if not languages:
+                    continue
+                _LOGGER.info(
+                    "Installing wakewords from %s for languages: %s",
+                    repo[CONF_REPO_NAME],
+                    languages,
+                )
+                await repo_manager.install_wakewords(
+                    repo["repo_url"], languages, repo[CONF_REPO_NAME]
+                )
+            except Exception as err:
+                _LOGGER.error(
+                    "Failed to install wakewords from %s: %s",
+                    repo.get(CONF_REPO_NAME, "unknown"),
+                    err,
+                )
+    finally:
+        await repo_manager.close()
 
 
 def _register_services(hass: HomeAssistant) -> None:

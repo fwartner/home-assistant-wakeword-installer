@@ -25,6 +25,7 @@ def mock_hass() -> MagicMock:
     hass.services.async_remove = MagicMock()
     hass.services.has_service = MagicMock(return_value=False)
     hass.async_add_executor_job = AsyncMock(side_effect=lambda fn, *a: fn(*a))
+    hass.async_create_task = MagicMock(side_effect=lambda coro: coro.close())
     return hass
 
 
