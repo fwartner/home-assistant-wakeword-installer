@@ -51,24 +51,39 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.data.setdefault(DOMAIN, {})
     hass.data[DOMAIN][entry.entry_id] = entry.data
 
-    # Register services
+    # Only register services once (first entry to load)
+    if not hass.services.has_service(DOMAIN, SERVICE_INSTALL_WAKEWORDS):
+        _register_services(hass)
+
+    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    return True
+
+
+def _register_services(hass: HomeAssistant) -> None:
+    """Register integration services."""
+
     async def install_wakewords_service(call: ServiceCall) -> None:
         """Handle install wakewords service call."""
         repo_manager = RepositoryManager(hass)
         try:
-            repositories = entry.data.get(CONF_REPOSITORIES, [])
-            target_repo = call.data.get("repository")
-            target_languages = call.data.get("languages")
-            
-            for repo in repositories:
-                if target_repo and repo[CONF_REPO_NAME] != target_repo:
-                    continue
-                    
-                languages = target_languages or repo.get("selected_languages", [])
-                await repo_manager.install_wakewords(repo["repo_url"], languages, repo[CONF_REPO_NAME])
-                
-        except Exception as e:
-            _LOGGER.error(f"Failed to install wakewords: {e}")
+            for entry_data in hass.data.get(DOMAIN, {}).values():
+                repositories = entry_data.get(CONF_REPOSITORIES, [])
+                target_repo = call.data.get("repository")
+                target_languages = call.data.get("languages")
+
+                for repo in repositories:
+                    if target_repo and repo[CONF_REPO_NAME] != target_repo:
+                        continue
+
+                    languages = target_languages or repo.get(
+                        "selected_languages", []
+                    )
+                    await repo_manager.install_wakewords(
+                        repo["repo_url"], languages, repo[CONF_REPO_NAME]
+                    )
+
+        except Exception as err:
+            _LOGGER.error("Failed to install wakewords: %s", err)
         finally:
             await repo_manager.close()
 
@@ -79,8 +94,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             repo_name = call.data["repository"]
             languages = call.data["languages"]
             await repo_manager.remove_wakewords(repo_name, languages)
-        except Exception as e:
-            _LOGGER.error(f"Failed to remove wakewords: {e}")
+        except Exception as err:
+            _LOGGER.error("Failed to remove wakewords: %s", err)
         finally:
             await repo_manager.close()
 
@@ -90,8 +105,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         try:
             repo_name = call.data["repository"]
             await repo_manager.remove_repository_wakewords(repo_name)
-        except Exception as e:
-            _LOGGER.error(f"Failed to remove repository wakewords: {e}")
+        except Exception as err:
+            _LOGGER.error("Failed to remove repository wakewords: %s", err)
         finally:
             await repo_manager.close()
 
@@ -100,9 +115,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         repo_manager = RepositoryManager(hass)
         try:
             installed = await repo_manager.get_installed_wakewords()
-            _LOGGER.info(f"Installed wakewords: {installed}")
-        except Exception as e:
-            _LOGGER.error(f"Failed to list installed wakewords: {e}")
+            _LOGGER.info("Installed wakewords: %s", installed)
+        except Exception as err:
+            _LOGGER.error("Failed to list installed wakewords: %s", err)
         finally:
             await repo_manager.close()
 
@@ -110,30 +125,46 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         """Handle refresh repositories service call."""
         repo_manager = RepositoryManager(hass)
         try:
-            repositories = entry.data.get(CONF_REPOSITORIES, [])
-            for repo in repositories:
-                languages = await repo_manager.get_available_languages(repo["repo_url"])
-                _LOGGER.info(f"Available languages for {repo[CONF_REPO_NAME]}: {languages}")
-        except Exception as e:
-            _LOGGER.error(f"Failed to refresh repositories: {e}")
+            for entry_data in hass.data.get(DOMAIN, {}).values():
+                repositories = entry_data.get(CONF_REPOSITORIES, [])
+                for repo in repositories:
+                    languages = await repo_manager.get_available_languages(
+                        repo["repo_url"]
+                    )
+                    _LOGGER.info(
+                        "Available languages for %s: %s",
+                        repo[CONF_REPO_NAME],
+                        languages,
+                    )
+        except Exception as err:
+            _LOGGER.error("Failed to refresh repositories: %s", err)
         finally:
             await repo_manager.close()
 
-    # Register all services
     hass.services.async_register(
-        DOMAIN, SERVICE_INSTALL_WAKEWORDS, install_wakewords_service, schema=SERVICE_INSTALL_SCHEMA
+        DOMAIN,
+        SERVICE_INSTALL_WAKEWORDS,
+        install_wakewords_service,
+        schema=SERVICE_INSTALL_SCHEMA,
     )
     hass.services.async_register(
-        DOMAIN, SERVICE_REMOVE_WAKEWORDS, remove_wakewords_service, schema=SERVICE_REMOVE_SCHEMA
+        DOMAIN,
+        SERVICE_REMOVE_WAKEWORDS,
+        remove_wakewords_service,
+        schema=SERVICE_REMOVE_SCHEMA,
     )
     hass.services.async_register(
-        DOMAIN, SERVICE_REMOVE_REPOSITORY_WAKEWORDS, remove_repository_wakewords_service, schema=SERVICE_REMOVE_REPOSITORY_SCHEMA
+        DOMAIN,
+        SERVICE_REMOVE_REPOSITORY_WAKEWORDS,
+        remove_repository_wakewords_service,
+        schema=SERVICE_REMOVE_REPOSITORY_SCHEMA,
     )
-    hass.services.async_register(DOMAIN, SERVICE_LIST_INSTALLED, list_installed_service)
-    hass.services.async_register(DOMAIN, SERVICE_REFRESH_REPOSITORIES, refresh_repositories_service)
-
-    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
-    return True
+    hass.services.async_register(
+        DOMAIN, SERVICE_LIST_INSTALLED, list_installed_service
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_REFRESH_REPOSITORIES, refresh_repositories_service
+    )
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -141,12 +172,13 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:
         hass.data[DOMAIN].pop(entry.entry_id)
-        
-        # Remove services
-        hass.services.async_remove(DOMAIN, SERVICE_INSTALL_WAKEWORDS)
-        hass.services.async_remove(DOMAIN, SERVICE_REMOVE_WAKEWORDS)
-        hass.services.async_remove(DOMAIN, SERVICE_REMOVE_REPOSITORY_WAKEWORDS)
-        hass.services.async_remove(DOMAIN, SERVICE_LIST_INSTALLED)
-        hass.services.async_remove(DOMAIN, SERVICE_REFRESH_REPOSITORIES)
+
+        # Only remove services when the last entry is unloaded
+        if not hass.data[DOMAIN]:
+            hass.services.async_remove(DOMAIN, SERVICE_INSTALL_WAKEWORDS)
+            hass.services.async_remove(DOMAIN, SERVICE_REMOVE_WAKEWORDS)
+            hass.services.async_remove(DOMAIN, SERVICE_REMOVE_REPOSITORY_WAKEWORDS)
+            hass.services.async_remove(DOMAIN, SERVICE_LIST_INSTALLED)
+            hass.services.async_remove(DOMAIN, SERVICE_REFRESH_REPOSITORIES)
 
     return unload_ok

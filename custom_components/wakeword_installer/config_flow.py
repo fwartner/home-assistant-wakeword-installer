@@ -7,8 +7,12 @@ from typing import Any
 import voluptuous as vol
 
 from homeassistant import config_entries
+
+try:
+    from homeassistant.config_entries import ConfigFlowResult
+except ImportError:
+    from homeassistant.data_entry_flow import FlowResult as ConfigFlowResult
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.data_entry_flow import FlowResult
 from homeassistant.exceptions import HomeAssistantError
 import homeassistant.helpers.config_validation as cv
 
@@ -38,7 +42,7 @@ class WakewordInstallerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         """Handle the initial step."""
         if user_input is None:
             return self.async_show_form(
@@ -47,11 +51,10 @@ class WakewordInstallerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         errors = {}
 
+        repo_manager = RepositoryManager(self.hass)
         try:
-            # Validate repository URL and fetch available languages
-            repo_manager = RepositoryManager(self.hass)
             languages = await repo_manager.get_available_languages(user_input[CONF_REPO_URL])
-            
+
             if not languages:
                 errors["base"] = "no_languages_found"
             else:
@@ -62,13 +65,13 @@ class WakewordInstallerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 self.available_languages = languages
                 return await self.async_step_select_languages()
 
-        except CannotConnect:
+        except HomeAssistantError:
             errors["base"] = "cannot_connect"
-        except InvalidRepo:
-            errors["base"] = "invalid_repo"
-        except Exception:  # pylint: disable=broad-except
+        except Exception:
             _LOGGER.exception("Unexpected exception")
             errors["base"] = "unknown"
+        finally:
+            await repo_manager.close()
 
         return self.async_show_form(
             step_id="user", data_schema=STEP_USER_DATA_SCHEMA, errors=errors
@@ -76,15 +79,15 @@ class WakewordInstallerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_select_languages(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         """Handle language selection step."""
         if user_input is None:
             language_schema = vol.Schema({
-                vol.Required(CONF_SELECTED_LANGUAGES, default=self.available_languages): 
+                vol.Required(CONF_SELECTED_LANGUAGES, default=self.available_languages):
                 cv.multi_select(self.available_languages)
             })
             return self.async_show_form(
-                step_id="select_languages", 
+                step_id="select_languages",
                 data_schema=language_schema,
                 description_placeholders={
                     "repo_name": self.current_repo[CONF_REPO_NAME],
@@ -92,7 +95,6 @@ class WakewordInstallerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 }
             )
 
-        # Add the repository with selected languages
         repo_config = {
             **self.current_repo,
             CONF_SELECTED_LANGUAGES: user_input[CONF_SELECTED_LANGUAGES]
@@ -103,7 +105,7 @@ class WakewordInstallerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_add_more(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         """Ask if user wants to add more repositories."""
         if user_input is None:
             return self.async_show_form(
@@ -112,14 +114,19 @@ class WakewordInstallerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     vol.Required("add_another", default=False): bool
                 }),
                 description_placeholders={
-                    "current_repos": "\n".join([f"• {repo[CONF_REPO_NAME]}" for repo in self.repositories])
+                    "current_repos": "\n".join([
+                        "- %s" % repo[CONF_REPO_NAME] for repo in self.repositories
+                    ])
                 }
             )
 
         if user_input["add_another"]:
             return await self.async_step_user()
 
-        # Create the config entry
+        # Set unique ID to prevent duplicate instances
+        await self.async_set_unique_id(DOMAIN)
+        self._abort_if_unique_id_configured()
+
         return self.async_create_entry(
             title="Wakeword Installer",
             data={CONF_REPOSITORIES: self.repositories}
@@ -131,30 +138,31 @@ class WakewordInstallerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         config_entry: config_entries.ConfigEntry,
     ) -> WakewordInstallerOptionsFlow:
         """Get the options flow for this handler."""
-        return WakewordInstallerOptionsFlow(config_entry)
+        return WakewordInstallerOptionsFlow()
 
 
 class WakewordInstallerOptionsFlow(config_entries.OptionsFlow):
     """Handle options flow for Wakeword Installer."""
 
-    def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
-        """Initialize options flow."""
-        self.config_entry = config_entry
-        self.repositories = config_entry.data.get(CONF_REPOSITORIES, [])
-
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         """Manage the options."""
+        self.repositories = list(
+            self.config_entry.data.get(CONF_REPOSITORIES, [])
+        )
         return await self.async_step_manage_repos()
 
     async def async_step_manage_repos(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         """Manage repositories."""
         if user_input is None:
-            repo_list = [f"{repo[CONF_REPO_NAME]} ({repo[CONF_REPO_URL]})" for repo in self.repositories]
-            
+            repo_list = [
+                "%s (%s)" % (repo[CONF_REPO_NAME], repo[CONF_REPO_URL])
+                for repo in self.repositories
+            ]
+
             if not repo_list:
                 repo_list = ["No repositories configured"]
 
@@ -165,12 +173,12 @@ class WakewordInstallerOptionsFlow(config_entries.OptionsFlow):
                     vol.Optional("repo_to_remove"): vol.In(repo_list) if len(self.repositories) > 0 else str,
                 }),
                 description_placeholders={
-                    "repo_list": "\n".join([f"• {repo}" for repo in repo_list])
+                    "repo_list": "\n".join(["- %s" % repo for repo in repo_list])
                 }
             )
 
         action = user_input.get("action")
-        
+
         if action == "add":
             return await self.async_step_add_repo()
         elif action == "remove":
@@ -182,7 +190,7 @@ class WakewordInstallerOptionsFlow(config_entries.OptionsFlow):
 
     async def async_step_add_repo(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         """Add a new repository."""
         if user_input is None:
             return self.async_show_form(
@@ -191,19 +199,18 @@ class WakewordInstallerOptionsFlow(config_entries.OptionsFlow):
             )
 
         errors = {}
+        repo_manager = RepositoryManager(self.hass)
         try:
-            repo_manager = RepositoryManager(self.hass)
             languages = await repo_manager.get_available_languages(user_input[CONF_REPO_URL])
-            
+
             if languages:
                 new_repo = {
                     CONF_REPO_NAME: user_input[CONF_REPO_NAME],
                     CONF_REPO_URL: user_input[CONF_REPO_URL],
-                    CONF_SELECTED_LANGUAGES: languages  # Select all by default
+                    CONF_SELECTED_LANGUAGES: languages
                 }
                 self.repositories.append(new_repo)
-                
-                # Update config entry
+
                 self.hass.config_entries.async_update_entry(
                     self.config_entry,
                     data={CONF_REPOSITORIES: self.repositories}
@@ -213,6 +220,8 @@ class WakewordInstallerOptionsFlow(config_entries.OptionsFlow):
 
         except Exception:
             errors["base"] = "unknown"
+        finally:
+            await repo_manager.close()
 
         if errors:
             return self.async_show_form(
@@ -225,26 +234,28 @@ class WakewordInstallerOptionsFlow(config_entries.OptionsFlow):
 
     async def async_step_remove_repo(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         """Remove a repository."""
         repo_to_remove = user_input.get("repo_to_remove")
         if repo_to_remove and repo_to_remove != "No repositories configured":
-            # Extract repo name from the display string
             repo_name = repo_to_remove.split(" (")[0]
-            
-            # Remove all wakeword files associated with this repository
+
+            repo_manager = RepositoryManager(self.hass)
             try:
-                repo_manager = RepositoryManager(self.hass)
                 await repo_manager.remove_repository_wakewords(repo_name)
+                _LOGGER.info("Removed all wakeword files for repository: %s", repo_name)
+            except Exception as err:
+                _LOGGER.error(
+                    "Failed to remove wakeword files for %s: %s", repo_name, err
+                )
+            finally:
                 await repo_manager.close()
-                _LOGGER.info(f"Removed all wakeword files for repository: {repo_name}")
-            except Exception as e:
-                _LOGGER.error(f"Failed to remove wakeword files for {repo_name}: {e}")
-            
-            # Remove repository from configuration
-            self.repositories = [repo for repo in self.repositories if repo[CONF_REPO_NAME] != repo_name]
-            
-            # Update config entry
+
+            self.repositories = [
+                repo for repo in self.repositories
+                if repo[CONF_REPO_NAME] != repo_name
+            ]
+
             self.hass.config_entries.async_update_entry(
                 self.config_entry,
                 data={CONF_REPOSITORIES: self.repositories}
@@ -254,19 +265,25 @@ class WakewordInstallerOptionsFlow(config_entries.OptionsFlow):
 
     async def async_step_install_wakewords(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         """Install wakewords from repositories."""
         repo_manager = RepositoryManager(self.hass)
-        
-        for repo in self.repositories:
-            try:
-                await repo_manager.install_wakewords(
-                    repo[CONF_REPO_URL],
-                    repo[CONF_SELECTED_LANGUAGES],
-                    repo[CONF_REPO_NAME]
-                )
-            except Exception as e:
-                _LOGGER.error(f"Failed to install wakewords from {repo[CONF_REPO_NAME]}: {e}")
+        try:
+            for repo in self.repositories:
+                try:
+                    await repo_manager.install_wakewords(
+                        repo[CONF_REPO_URL],
+                        repo[CONF_SELECTED_LANGUAGES],
+                        repo[CONF_REPO_NAME]
+                    )
+                except Exception as err:
+                    _LOGGER.error(
+                        "Failed to install wakewords from %s: %s",
+                        repo[CONF_REPO_NAME],
+                        err,
+                    )
+        finally:
+            await repo_manager.close()
 
         return self.async_show_form(
             step_id="install_complete",
@@ -275,11 +292,3 @@ class WakewordInstallerOptionsFlow(config_entries.OptionsFlow):
                 "message": "Wakewords have been installed successfully!"
             }
         )
-
-
-class CannotConnect(HomeAssistantError):
-    """Error to indicate we cannot connect."""
-
-
-class InvalidRepo(HomeAssistantError):
-    """Error to indicate there is invalid repository."""

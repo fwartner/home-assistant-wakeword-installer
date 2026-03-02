@@ -1,7 +1,6 @@
 {
     "name": "Wakeword Installer",
     "content_in_root": false,
-    "filename": "wakeword_installer.zip",
     "render_readme": true,
     "homeassistant": "2024.1.0",
     "zip_release": false,
