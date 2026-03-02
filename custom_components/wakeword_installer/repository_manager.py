@@ -1,13 +1,12 @@
 """Repository manager for handling GitHub repositories and wakeword files."""
 from __future__ import annotations
 
-import asyncio
 import logging
 import os
+import shutil
 import tempfile
 import zipfile
 from pathlib import Path
-from typing import Any
 
 import aiofiles
 import aiohttp
@@ -19,6 +18,10 @@ from .const import WAKEWORD_INSTALL_PATH
 
 _LOGGER = logging.getLogger(__name__)
 
+# Safety limits
+HTTP_TIMEOUT = aiohttp.ClientTimeout(total=120, connect=30)
+MAX_DOWNLOAD_SIZE = 500 * 1024 * 1024  # 500 MB
+
 
 class RepositoryManager:
     """Manage GitHub repositories and wakeword installations."""
@@ -26,7 +29,7 @@ class RepositoryManager:
     def __init__(self, hass: HomeAssistant) -> None:
         """Initialize the repository manager."""
         self.hass = hass
-        self.session = aiohttp.ClientSession()
+        self.session = aiohttp.ClientSession(timeout=HTTP_TIMEOUT)
 
     async def close(self) -> None:
         """Close the aiohttp session."""
@@ -36,110 +39,127 @@ class RepositoryManager:
     async def get_available_languages(self, repo_url: str) -> list[str]:
         """Get available language folders from a GitHub repository."""
         try:
-            # Convert GitHub URL to API URL
             api_url = self._convert_to_api_url(repo_url)
-            
+
             async with self.session.get(api_url) as response:
                 if response.status != 200:
-                    raise HomeAssistantError(f"Failed to fetch repository contents: {response.status}")
-                
-                contents = await response.json()
-                
-                # Filter for directories (language folders)
-                languages = []
-                for item in contents:
-                    if item["type"] == "dir":
-                        languages.append(item["name"])
-                
-                return sorted(languages)
-                
-        except aiohttp.ClientError as e:
-            _LOGGER.error(f"Network error while fetching repository: {e}")
-            raise HomeAssistantError(f"Cannot connect to repository: {e}")
-        except Exception as e:
-            _LOGGER.error(f"Error parsing repository contents: {e}")
-            raise HomeAssistantError(f"Invalid repository structure: {e}")
+                    raise HomeAssistantError(
+                        "Failed to fetch repository contents: %s" % response.status
+                    )
 
-    async def install_wakewords(self, repo_url: str, selected_languages: list[str], repo_name: str | None = None) -> None:
+                contents = await response.json()
+
+                languages = [
+                    item["name"] for item in contents if item["type"] == "dir"
+                ]
+                return sorted(languages)
+
+        except aiohttp.ClientError as err:
+            _LOGGER.error("Network error while fetching repository: %s", err)
+            raise HomeAssistantError("Cannot connect to repository: %s" % err)
+        except HomeAssistantError:
+            raise
+        except Exception as err:
+            _LOGGER.error("Error parsing repository contents: %s", err)
+            raise HomeAssistantError("Invalid repository structure: %s" % err)
+
+    async def install_wakewords(
+        self,
+        repo_url: str,
+        selected_languages: list[str],
+        repo_name: str | None = None,
+    ) -> None:
         """Install wakeword files from repository for selected languages."""
         try:
-            # Create installation directory if it doesn't exist
             install_path = Path(WAKEWORD_INSTALL_PATH)
-            install_path.mkdir(parents=True, exist_ok=True)
-            
-            # Extract repository name from URL if not provided
+            await self.hass.async_add_executor_job(
+                install_path.mkdir, 0o777, True, True
+            )
+
             if repo_name is None:
                 repo_name = self._extract_repo_name(repo_url)
-            
-            # Download repository as zip
+
             download_url = self._get_download_url(repo_url)
-            
+
             with tempfile.TemporaryDirectory() as temp_dir:
                 zip_path = Path(temp_dir) / "repo.zip"
-                
-                # Download the repository
+
                 await self._download_file(download_url, zip_path)
-                
-                # Extract and install files
-                await self._extract_and_install(zip_path, selected_languages, install_path, repo_name)
-                
-            _LOGGER.info(f"Successfully installed wakewords for languages: {selected_languages}")
-            
-        except Exception as e:
-            _LOGGER.error(f"Failed to install wakewords: {e}")
-            raise HomeAssistantError(f"Installation failed: {e}")
+
+                await self._extract_and_install(
+                    zip_path, selected_languages, install_path, repo_name, temp_dir
+                )
+
+            _LOGGER.info(
+                "Successfully installed wakewords for languages: %s",
+                selected_languages,
+            )
+
+        except HomeAssistantError:
+            raise
+        except Exception as err:
+            _LOGGER.error("Failed to install wakewords: %s", err)
+            raise HomeAssistantError("Installation failed: %s" % err)
 
     def _extract_repo_name(self, repo_url: str) -> str:
         """Extract repository name from URL."""
-        # Handle different GitHub URL formats
         if repo_url.startswith("https://github.com/"):
             repo_path = repo_url.replace("https://github.com/", "")
         elif repo_url.startswith("github.com/"):
             repo_path = repo_url.replace("github.com/", "")
         else:
             return "unknown-repo"
-        
-        # Remove .git suffix if present
+
         if repo_path.endswith(".git"):
             repo_path = repo_path[:-4]
-        
-        # Remove trailing slash and get just the repo name
+
         repo_path = repo_path.rstrip("/")
         return repo_path.split("/")[-1] if "/" in repo_path else repo_path
 
-    async def remove_wakewords(self, repo_name: str, languages: list[str] | None = None) -> None:
-        """Remove installed wakeword files for specific languages or all files from a repository.
-        
+    async def remove_wakewords(
+        self, repo_name: str, languages: list[str] | None = None
+    ) -> None:
+        """Remove installed wakeword files.
+
         Args:
-            repo_name: Name of the repository
-            languages: List of languages to remove. If None, removes all files from the repository.
+            repo_name: Name of the repository.
+            languages: Languages to remove. If None, removes all from this repo.
         """
-        try:
+
+        def _remove_sync() -> None:
             install_path = Path(WAKEWORD_INSTALL_PATH)
-            
+            if not install_path.exists():
+                return
+
             if languages is None:
-                # Remove all files from this repository
-                repo_files = install_path.glob(f"*{repo_name}*.tflite")
-                for file_path in repo_files:
+                # Format: {repo_name}_{language}_{original_name}.tflite
+                for file_path in install_path.glob("%s_*.tflite" % repo_name):
                     try:
                         file_path.unlink()
-                        _LOGGER.info(f"Removed wakeword file: {file_path}")
-                    except OSError as e:
-                        _LOGGER.warning(f"Failed to remove file {file_path}: {e}")
+                        _LOGGER.info("Removed wakeword file: %s", file_path.name)
+                    except OSError as err:
+                        _LOGGER.warning(
+                            "Failed to remove file %s: %s", file_path, err
+                        )
             else:
-                # Remove files for specific languages
                 for language in languages:
-                    language_files = install_path.glob(f"{language}_*{repo_name}*.tflite")
-                    for file_path in language_files:
+                    pattern = "%s_%s_*.tflite" % (repo_name, language)
+                    for file_path in install_path.glob(pattern):
                         try:
                             file_path.unlink()
-                            _LOGGER.info(f"Removed wakeword file: {file_path}")
-                        except OSError as e:
-                            _LOGGER.warning(f"Failed to remove file {file_path}: {e}")
-                        
-        except Exception as e:
-            _LOGGER.error(f"Failed to remove wakewords: {e}")
-            raise HomeAssistantError(f"Removal failed: {e}")
+                            _LOGGER.info(
+                                "Removed wakeword file: %s", file_path.name
+                            )
+                        except OSError as err:
+                            _LOGGER.warning(
+                                "Failed to remove file %s: %s", file_path, err
+                            )
+
+        try:
+            await self.hass.async_add_executor_job(_remove_sync)
+        except Exception as err:
+            _LOGGER.error("Failed to remove wakewords: %s", err)
+            raise HomeAssistantError("Removal failed: %s" % err)
 
     async def remove_repository_wakewords(self, repo_name: str) -> None:
         """Remove all wakeword files associated with a repository."""
@@ -147,22 +167,18 @@ class RepositoryManager:
 
     def _convert_to_api_url(self, repo_url: str) -> str:
         """Convert GitHub repository URL to API URL."""
-        # Handle different GitHub URL formats
         if repo_url.startswith("https://github.com/"):
             repo_path = repo_url.replace("https://github.com/", "")
         elif repo_url.startswith("github.com/"):
             repo_path = repo_url.replace("github.com/", "")
         else:
             raise HomeAssistantError("Invalid GitHub repository URL")
-        
-        # Remove .git suffix if present
+
         if repo_path.endswith(".git"):
             repo_path = repo_path[:-4]
-        
-        # Remove trailing slash
+
         repo_path = repo_path.rstrip("/")
-        
-        return f"https://api.github.com/repos/{repo_path}/contents"
+        return "https://api.github.com/repos/%s/contents" % repo_path
 
     def _get_download_url(self, repo_url: str) -> str:
         """Get the download URL for the repository zip."""
@@ -172,105 +188,133 @@ class RepositoryManager:
             repo_path = repo_url.replace("github.com/", "")
         else:
             raise HomeAssistantError("Invalid GitHub repository URL")
-        
+
         if repo_path.endswith(".git"):
             repo_path = repo_path[:-4]
-        
+
         repo_path = repo_path.rstrip("/")
-        
-        return f"https://github.com/{repo_path}/archive/refs/heads/main.zip"
+        return "https://github.com/%s/archive/refs/heads/main.zip" % repo_path
 
     async def _download_file(self, url: str, file_path: Path) -> None:
-        """Download a file from URL to local path."""
+        """Download a file from URL to local path with size limit."""
         try:
             async with self.session.get(url) as response:
                 if response.status != 200:
-                    raise HomeAssistantError(f"Failed to download file: {response.status}")
-                
-                async with aiofiles.open(file_path, 'wb') as file:
-                    async for chunk in response.content.iter_chunked(8192):
-                        await file.write(chunk)
-                        
-        except aiohttp.ClientError as e:
-            raise HomeAssistantError(f"Download failed: {e}")
+                    raise HomeAssistantError(
+                        "Failed to download file: %s" % response.status
+                    )
 
-    async def _extract_and_install(self, zip_path: Path, selected_languages: list[str], install_path: Path, repo_name: str) -> None:
+                # Check content-length if available
+                content_length = response.content_length
+                if content_length and content_length > MAX_DOWNLOAD_SIZE:
+                    raise HomeAssistantError(
+                        "Download too large: %d bytes (max %d)"
+                        % (content_length, MAX_DOWNLOAD_SIZE)
+                    )
+
+                total_size = 0
+                async with aiofiles.open(file_path, "wb") as file:
+                    async for chunk in response.content.iter_chunked(8192):
+                        total_size += len(chunk)
+                        if total_size > MAX_DOWNLOAD_SIZE:
+                            raise HomeAssistantError(
+                                "Download exceeded size limit of %d bytes"
+                                % MAX_DOWNLOAD_SIZE
+                            )
+                        await file.write(chunk)
+
+        except aiohttp.ClientError as err:
+            raise HomeAssistantError("Download failed: %s" % err)
+
+    async def _extract_and_install(
+        self,
+        zip_path: Path,
+        selected_languages: list[str],
+        install_path: Path,
+        repo_name: str,
+        temp_dir: str,
+    ) -> None:
         """Extract zip file and install tflite files for selected languages."""
-        def extract_sync():
-            with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-                # Get all files in the zip
+
+        def extract_sync() -> None:
+            with zipfile.ZipFile(zip_path, "r") as zip_ref:
                 all_files = zip_ref.namelist()
-                
-                # Filter for tflite files in selected language directories
+
                 tflite_files = []
-                for file_path in all_files:
-                    if file_path.endswith('.tflite'):
-                        # Check if file is in one of the selected language directories
-                        path_parts = file_path.split('/')
+                for entry in all_files:
+                    if entry.endswith(".tflite"):
+                        path_parts = entry.split("/")
                         if len(path_parts) >= 2:
-                            # Check if any part of the path matches selected languages
                             for language in selected_languages:
                                 if language in path_parts:
-                                    tflite_files.append(file_path)
+                                    tflite_files.append(entry)
                                     break
-                
-                # Extract and install the tflite files
+
                 for tflite_file in tflite_files:
                     try:
-                        # Extract to temporary location
-                        temp_file = zip_ref.extract(tflite_file)
-                        
-                        # Generate new filename with repo name, language, and original name
+                        # Zip-slip protection: extract to temp_dir and validate
+                        member_info = zip_ref.getinfo(tflite_file)
+                        extracted = zip_ref.extract(member_info, path=temp_dir)
+                        real_extracted = os.path.realpath(extracted)
+                        real_temp = os.path.realpath(temp_dir)
+                        if not real_extracted.startswith(real_temp + os.sep):
+                            _LOGGER.warning(
+                                "Skipping suspicious zip entry: %s", tflite_file
+                            )
+                            continue
+
                         original_name = Path(tflite_file).name
-                        
-                        # Try to determine language from path
+
                         language = "unknown"
-                        path_parts = tflite_file.split('/')
+                        path_parts = tflite_file.split("/")
                         for part in path_parts:
                             if part in selected_languages:
                                 language = part
                                 break
-                        
+
                         # Format: {repo_name}_{language}_{original_name}
-                        new_name = f"{repo_name}_{language}_{original_name}"
+                        new_name = "%s_%s_%s" % (repo_name, language, original_name)
                         destination = install_path / new_name
-                        
-                        # Move file to installation directory
-                        import shutil
-                        shutil.move(temp_file, destination)
-                        
-                        _LOGGER.info(f"Installed wakeword: {new_name}")
-                        
-                    except Exception as e:
-                        _LOGGER.warning(f"Failed to install {tflite_file}: {e}")
-        
-        # Run the synchronous extraction in a thread
+
+                        shutil.move(extracted, destination)
+
+                        _LOGGER.info("Installed wakeword: %s", new_name)
+
+                    except Exception as err:
+                        _LOGGER.warning(
+                            "Failed to install %s: %s", tflite_file, err
+                        )
+
         await self.hass.async_add_executor_job(extract_sync)
 
     async def get_installed_wakewords(self) -> dict[str, list[str]]:
         """Get list of currently installed wakeword files organized by language."""
-        try:
+
+        def _list_sync() -> dict[str, list[str]]:
             install_path = Path(WAKEWORD_INSTALL_PATH)
             if not install_path.exists():
                 return {}
-            
-            installed = {}
+
+            installed: dict[str, list[str]] = {}
             for tflite_file in install_path.glob("*.tflite"):
                 filename = tflite_file.name
-                
-                # Try to extract language from filename
-                if "_" in filename:
-                    language = filename.split("_")[0]
+
+                # Format: {repo_name}_{language}_{original_name}
+                parts = filename.split("_")
+                if len(parts) >= 3:
+                    language = parts[1]
                 else:
                     language = "unknown"
-                
+
                 if language not in installed:
                     installed[language] = []
-                
+
                 installed[language].append(filename)
-            
+
             return installed
-            
-        except Exception as e:
-            _LOGGER.error(f"Failed to get installed wakewords: {e}")
+
+        try:
+            return await self.hass.async_add_executor_job(_list_sync)
+        except Exception as err:
+            _LOGGER.error("Failed to get installed wakewords: %s", err)
             return {}

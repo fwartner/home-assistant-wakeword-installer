@@ -1,7 +1,6 @@
 """Shared fixtures for Wakeword Installer tests."""
 from __future__ import annotations
 
-from collections.abc import Generator
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -24,6 +23,7 @@ def mock_hass() -> MagicMock:
     hass.services = MagicMock()
     hass.services.async_register = MagicMock()
     hass.services.async_remove = MagicMock()
+    hass.services.has_service = MagicMock(return_value=False)
     hass.async_add_executor_job = AsyncMock(side_effect=lambda fn, *a: fn(*a))
     return hass
 

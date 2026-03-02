@@ -31,6 +31,7 @@ class TestAsyncSetupEntry:
     """Test async_setup_entry."""
 
     async def test_registers_services(self, mock_hass: MagicMock, mock_config_entry: MagicMock) -> None:
+        mock_hass.services.has_service = MagicMock(return_value=False)
         with patch("custom_components.wakeword_installer.RepositoryManager"):
             result = await async_setup_entry(mock_hass, mock_config_entry)
 
@@ -47,6 +48,17 @@ class TestAsyncSetupEntry:
         assert SERVICE_REMOVE_REPOSITORY_WAKEWORDS in registered
         assert SERVICE_LIST_INSTALLED in registered
         assert SERVICE_REFRESH_REPOSITORIES in registered
+
+    async def test_skips_service_registration_when_already_registered(
+        self, mock_hass: MagicMock, mock_config_entry: MagicMock
+    ) -> None:
+        """Second entry should not re-register services."""
+        mock_hass.services.has_service = MagicMock(return_value=True)
+        with patch("custom_components.wakeword_installer.RepositoryManager"):
+            result = await async_setup_entry(mock_hass, mock_config_entry)
+
+        assert result is True
+        mock_hass.services.async_register.assert_not_called()
 
     async def test_stores_entry_data(self, mock_hass: MagicMock, mock_config_entry: MagicMock) -> None:
         with patch("custom_components.wakeword_installer.RepositoryManager"):
@@ -67,8 +79,8 @@ class TestAsyncSetupEntry:
 class TestAsyncUnloadEntry:
     """Test async_unload_entry."""
 
-    async def test_successful_unload(self, mock_hass: MagicMock, mock_config_entry: MagicMock) -> None:
-        # Setup first
+    async def test_successful_unload_last_entry(self, mock_hass: MagicMock, mock_config_entry: MagicMock) -> None:
+        """When last entry is unloaded, services should be removed."""
         mock_hass.data[DOMAIN] = {mock_config_entry.entry_id: mock_config_entry.data}
 
         result = await async_unload_entry(mock_hass, mock_config_entry)
@@ -76,6 +88,19 @@ class TestAsyncUnloadEntry:
         assert result is True
         assert mock_config_entry.entry_id not in mock_hass.data[DOMAIN]
         assert mock_hass.services.async_remove.call_count == 5
+
+    async def test_successful_unload_not_last_entry(self, mock_hass: MagicMock, mock_config_entry: MagicMock) -> None:
+        """When other entries remain, services should NOT be removed."""
+        mock_hass.data[DOMAIN] = {
+            mock_config_entry.entry_id: mock_config_entry.data,
+            "other_entry": {"some": "data"},
+        }
+
+        result = await async_unload_entry(mock_hass, mock_config_entry)
+
+        assert result is True
+        assert mock_config_entry.entry_id not in mock_hass.data[DOMAIN]
+        mock_hass.services.async_remove.assert_not_called()
 
     async def test_failed_unload_keeps_data(self, mock_hass: MagicMock, mock_config_entry: MagicMock) -> None:
         mock_hass.data[DOMAIN] = {mock_config_entry.entry_id: mock_config_entry.data}
@@ -97,7 +122,7 @@ class TestServiceCalls:
         for c in mock_hass.services.async_register.call_args_list:
             if c.args[1] == service_name:
                 return c.args[2]
-        raise ValueError(f"Service {service_name} not registered")
+        raise ValueError("Service %s not registered" % service_name)
 
     async def test_install_wakewords_all_repos(self, mock_hass: MagicMock, mock_config_entry: MagicMock) -> None:
         with patch("custom_components.wakeword_installer.RepositoryManager") as mock_rm_cls:

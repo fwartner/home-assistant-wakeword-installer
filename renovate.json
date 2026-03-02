@@ -6,7 +6,7 @@
     "automerge": true,
     "automergeType": "pr",
     "baseBranches": [
-        "dev"
+        "main"
     ],
     "labels": [
         "dependencies"

@@ -114,7 +114,7 @@ class TestGetAvailableLanguages:
         mock_response.status = 404
         repo_manager.session.get = MagicMock(return_value=self._mock_context_manager(mock_response))
 
-        with pytest.raises(HomeAssistantError, match="Invalid repository structure"):
+        with pytest.raises(HomeAssistantError, match="Failed to fetch repository contents"):
             await repo_manager.get_available_languages("https://github.com/test/wakewords")
 
     async def test_empty_repo_returns_empty(self, repo_manager: RepositoryManager) -> None:
@@ -180,9 +180,9 @@ class TestInstallWakewords:
             installed = list(install_path.glob("*.tflite"))
             names = sorted(f.name for f in installed)
             assert len(names) == 2
-            assert any("en" in n for n in names)
-            assert any("de" in n for n in names)
-            assert not any("fr" in n for n in names)
+            # Format: {repo_name}_{language}_{original_name}
+            assert "test-repo_en_hey_jarvis.tflite" in names
+            assert "test-repo_de_hallo_jarvis.tflite" in names
 
 
 @pytest.mark.asyncio
@@ -192,9 +192,9 @@ class TestRemoveWakewords:
     async def test_remove_specific_languages(self, repo_manager: RepositoryManager) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             install_path = Path(tmpdir)
-            # Create fake installed files
-            (install_path / "en_test-repo_hey.tflite").write_bytes(b"x")
-            (install_path / "de_test-repo_hallo.tflite").write_bytes(b"x")
+            # Files in format: {repo_name}_{language}_{original_name}
+            (install_path / "test-repo_en_hey.tflite").write_bytes(b"x")
+            (install_path / "test-repo_de_hallo.tflite").write_bytes(b"x")
 
             with patch("custom_components.wakeword_installer.repository_manager.WAKEWORD_INSTALL_PATH", str(install_path)):
                 await repo_manager.remove_wakewords("test-repo", ["en"])
@@ -206,9 +206,10 @@ class TestRemoveWakewords:
     async def test_remove_all_for_repo(self, repo_manager: RepositoryManager) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             install_path = Path(tmpdir)
-            (install_path / "en_test-repo_hey.tflite").write_bytes(b"x")
-            (install_path / "de_test-repo_hallo.tflite").write_bytes(b"x")
-            (install_path / "en_other-repo_hi.tflite").write_bytes(b"x")
+            # Files in format: {repo_name}_{language}_{original_name}
+            (install_path / "test-repo_en_hey.tflite").write_bytes(b"x")
+            (install_path / "test-repo_de_hallo.tflite").write_bytes(b"x")
+            (install_path / "other-repo_en_hi.tflite").write_bytes(b"x")
 
             with patch("custom_components.wakeword_installer.repository_manager.WAKEWORD_INSTALL_PATH", str(install_path)):
                 await repo_manager.remove_wakewords("test-repo", languages=None)
@@ -225,9 +226,10 @@ class TestGetInstalledWakewords:
     async def test_returns_grouped_by_language(self, repo_manager: RepositoryManager) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             install_path = Path(tmpdir)
-            (install_path / "en_repo_hey.tflite").write_bytes(b"x")
-            (install_path / "en_repo_hi.tflite").write_bytes(b"x")
-            (install_path / "de_repo_hallo.tflite").write_bytes(b"x")
+            # Files in format: {repo_name}_{language}_{original_name}
+            (install_path / "repo_en_hey.tflite").write_bytes(b"x")
+            (install_path / "repo_en_hi.tflite").write_bytes(b"x")
+            (install_path / "repo_de_hallo.tflite").write_bytes(b"x")
 
             with patch("custom_components.wakeword_installer.repository_manager.WAKEWORD_INSTALL_PATH", str(install_path)):
                 result = await repo_manager.get_installed_wakewords()
@@ -247,3 +249,43 @@ class TestGetInstalledWakewords:
         with patch("custom_components.wakeword_installer.repository_manager.WAKEWORD_INSTALL_PATH", "/nonexistent/path"):
             result = await repo_manager.get_installed_wakewords()
         assert result == {}
+
+
+@pytest.mark.asyncio
+class TestZipSlipProtection:
+    """Test that zip-slip attacks are prevented."""
+
+    async def test_malicious_path_is_skipped(self, repo_manager: RepositoryManager) -> None:
+        """Verify that zip entries with path traversal are skipped."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            install_path = Path(tmpdir) / "openwakeword"
+
+            zip_path = Path(tmpdir) / "evil.zip"
+            with zipfile.ZipFile(zip_path, "w") as zf:
+                # Normal file
+                zf.writestr("repo-main/en/good.tflite", b"safe")
+                # Malicious path traversal entry
+                zf.writestr("repo-main/en/../../etc/evil.tflite", b"evil")
+
+            with (
+                patch("custom_components.wakeword_installer.repository_manager.WAKEWORD_INSTALL_PATH", str(install_path)),
+                patch.object(repo_manager, "_download_file", new_callable=AsyncMock) as mock_dl,
+            ):
+                async def fake_download(url, dest):
+                    import shutil
+                    shutil.copy2(zip_path, dest)
+
+                mock_dl.side_effect = fake_download
+
+                await repo_manager.install_wakewords(
+                    "https://github.com/test/wakewords",
+                    ["en"],
+                    "test-repo",
+                )
+
+            installed = list(install_path.glob("*.tflite"))
+            names = [f.name for f in installed]
+            # Only the safe file should be installed
+            assert "test-repo_en_good.tflite" in names
+            # The evil file should NOT exist outside the install path
+            assert not Path(tmpdir).joinpath("etc/evil.tflite").exists()

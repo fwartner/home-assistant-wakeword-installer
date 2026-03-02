@@ -16,6 +16,7 @@ from custom_components.wakeword_installer.const import (
     CONF_REPO_URL,
     CONF_REPOSITORIES,
     CONF_SELECTED_LANGUAGES,
+    DOMAIN,
 )
 
 
@@ -44,6 +45,7 @@ class TestConfigFlowUser:
         ) as mock_rm_cls:
             mock_rm = MagicMock()
             mock_rm.get_available_languages = AsyncMock(return_value=["en", "de", "fr"])
+            mock_rm.close = AsyncMock()
             mock_rm_cls.return_value = mock_rm
 
             result = await flow.async_step_user(
@@ -52,6 +54,8 @@ class TestConfigFlowUser:
                     CONF_REPO_URL: "https://github.com/test/wakewords",
                 }
             )
+
+            mock_rm.close.assert_called_once()
 
         assert result["type"] == "form"
         assert result["step_id"] == "select_languages"
@@ -65,6 +69,7 @@ class TestConfigFlowUser:
         ) as mock_rm_cls:
             mock_rm = MagicMock()
             mock_rm.get_available_languages = AsyncMock(return_value=[])
+            mock_rm.close = AsyncMock()
             mock_rm_cls.return_value = mock_rm
 
             result = await flow.async_step_user(
@@ -73,6 +78,8 @@ class TestConfigFlowUser:
                     CONF_REPO_URL: "https://github.com/test/wakewords",
                 }
             )
+
+            mock_rm.close.assert_called_once()
 
         assert result["type"] == "form"
         assert result["errors"]["base"] == "no_languages_found"
@@ -84,7 +91,10 @@ class TestConfigFlowUser:
         with patch(
             "custom_components.wakeword_installer.config_flow.RepositoryManager"
         ) as mock_rm_cls:
-            mock_rm_cls.side_effect = Exception("boom")
+            mock_rm = MagicMock()
+            mock_rm.get_available_languages = AsyncMock(side_effect=Exception("boom"))
+            mock_rm.close = AsyncMock()
+            mock_rm_cls.return_value = mock_rm
 
             result = await flow.async_step_user(
                 user_input={
@@ -92,6 +102,8 @@ class TestConfigFlowUser:
                     CONF_REPO_URL: "https://github.com/test/wakewords",
                 }
             )
+
+            mock_rm.close.assert_called_once()
 
         assert result["type"] == "form"
         assert result["errors"]["base"] == "unknown"
@@ -146,6 +158,7 @@ class TestConfigFlowAddMore:
     async def test_done_creates_entry(self) -> None:
         flow = WakewordInstallerConfigFlow()
         flow.hass = MagicMock()
+        flow.context = {}
         flow.repositories = [
             {
                 CONF_REPO_NAME: "test",
@@ -154,11 +167,17 @@ class TestConfigFlowAddMore:
             }
         ]
 
+        # Mock async_set_unique_id and _abort_if_unique_id_configured
+        flow.async_set_unique_id = AsyncMock()
+        flow._abort_if_unique_id_configured = MagicMock()
+
         result = await flow.async_step_add_more(user_input={"add_another": False})
 
         assert result["type"] == "create_entry"
         assert result["title"] == "Wakeword Installer"
         assert result["data"][CONF_REPOSITORIES] == flow.repositories
+        flow.async_set_unique_id.assert_called_once_with(DOMAIN)
+        flow._abort_if_unique_id_configured.assert_called_once()
 
     async def test_add_another_returns_to_user_step(self) -> None:
         flow = WakewordInstallerConfigFlow()
@@ -178,8 +197,8 @@ class TestConfigFlowAddMore:
 class TestOptionsFlowInit:
     """Test the OptionsFlow initialization.
 
-    This tests the fix for Issue #2 — modern HA (2025.12+) makes config_entry
-    a read-only property on OptionsFlow.  The flow must NOT accept config_entry
+    This tests the fix for Issue #2 -- modern HA (2025.12+) makes config_entry
+    a read-only property on OptionsFlow. The flow must NOT accept config_entry
     in __init__; it accesses self.config_entry set by the framework.
     """
 
@@ -265,6 +284,7 @@ class TestOptionsFlowAddRepo:
         ) as mock_rm_cls:
             mock_rm = MagicMock()
             mock_rm.get_available_languages = AsyncMock(return_value=["en", "de"])
+            mock_rm.close = AsyncMock()
             mock_rm_cls.return_value = mock_rm
 
             result = await flow.async_step_add_repo(
@@ -273,6 +293,8 @@ class TestOptionsFlowAddRepo:
                     CONF_REPO_URL: "https://github.com/t/r",
                 }
             )
+
+            mock_rm.close.assert_called_once()
 
         assert result["type"] == "form"
         assert result["step_id"] == "manage_repos"
@@ -306,7 +328,41 @@ class TestOptionsFlowRemoveRepo:
                 user_input={"repo_to_remove": "repo1 (https://github.com/t/r1)"}
             )
 
+            mock_rm.close.assert_called_once()
+
         assert result["type"] == "form"
         assert result["step_id"] == "manage_repos"
         assert len(flow.repositories) == 1
         assert flow.repositories[0][CONF_REPO_NAME] == "repo2"
+
+
+@pytest.mark.asyncio
+class TestOptionsFlowInstallWakewords:
+    """Test install_wakewords step."""
+
+    async def test_install_closes_session(self) -> None:
+        flow = WakewordInstallerOptionsFlow()
+        flow.hass = MagicMock()
+        flow.repositories = [
+            {
+                CONF_REPO_NAME: "test-repo",
+                CONF_REPO_URL: "https://github.com/t/r",
+                CONF_SELECTED_LANGUAGES: ["en"],
+            }
+        ]
+
+        with patch(
+            "custom_components.wakeword_installer.config_flow.RepositoryManager"
+        ) as mock_rm_cls:
+            mock_rm = MagicMock()
+            mock_rm.install_wakewords = AsyncMock()
+            mock_rm.close = AsyncMock()
+            mock_rm_cls.return_value = mock_rm
+
+            result = await flow.async_step_install_wakewords()
+
+            mock_rm.install_wakewords.assert_called_once()
+            mock_rm.close.assert_called_once()
+
+        assert result["type"] == "form"
+        assert result["step_id"] == "install_complete"
