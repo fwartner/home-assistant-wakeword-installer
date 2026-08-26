@@ -1,4 +1,5 @@
 """Tests for the RepositoryManager."""
+
 from __future__ import annotations
 
 import shutil
@@ -17,7 +18,9 @@ from custom_components.wakeword_installer.repository_manager import RepositoryMa
 @pytest.fixture
 def repo_manager(mock_hass: MagicMock) -> RepositoryManager:
     """Create a RepositoryManager with mocked session."""
-    with patch("custom_components.wakeword_installer.repository_manager.aiohttp.ClientSession") as mock_cs:
+    with patch(
+        "custom_components.wakeword_installer.repository_manager.aiohttp.ClientSession"
+    ) as mock_cs:
         manager = RepositoryManager(mock_hass)
         # Replace with a controllable mock
         manager.session = AsyncMock()
@@ -35,7 +38,9 @@ class TestConvertToApiUrl:
         result = repo_manager._convert_to_api_url("https://github.com/user/repo")
         assert result == "https://api.github.com/repos/user/repo/contents"
 
-    def test_github_url_with_trailing_slash(self, repo_manager: RepositoryManager) -> None:
+    def test_github_url_with_trailing_slash(
+        self, repo_manager: RepositoryManager
+    ) -> None:
         result = repo_manager._convert_to_api_url("https://github.com/user/repo/")
         assert result == "https://api.github.com/repos/user/repo/contents"
 
@@ -98,16 +103,25 @@ class TestExtractRepoName:
     """Test _extract_repo_name."""
 
     def test_standard_url(self, repo_manager: RepositoryManager) -> None:
-        assert repo_manager._extract_repo_name("https://github.com/user/my-repo") == "my-repo"
+        assert (
+            repo_manager._extract_repo_name("https://github.com/user/my-repo")
+            == "my-repo"
+        )
 
     def test_url_with_git_suffix(self, repo_manager: RepositoryManager) -> None:
-        assert repo_manager._extract_repo_name("https://github.com/user/my-repo.git") == "my-repo"
+        assert (
+            repo_manager._extract_repo_name("https://github.com/user/my-repo.git")
+            == "my-repo"
+        )
 
     def test_url_without_https(self, repo_manager: RepositoryManager) -> None:
         assert repo_manager._extract_repo_name("github.com/user/my-repo") == "my-repo"
 
     def test_unknown_url(self, repo_manager: RepositoryManager) -> None:
-        assert repo_manager._extract_repo_name("https://gitlab.com/user/repo") == "unknown-repo"
+        assert (
+            repo_manager._extract_repo_name("https://gitlab.com/user/repo")
+            == "unknown-repo"
+        )
 
 
 class TestNormalizeRepoPath:
@@ -145,26 +159,44 @@ class TestGetAvailableLanguages:
         mock_response = AsyncMock()
         mock_response.status = 200
         mock_response.json = AsyncMock(return_value=github_api_response)
-        repo_manager.session.get = MagicMock(return_value=self._mock_context_manager(mock_response))
+        repo_manager.session.get = MagicMock(
+            return_value=self._mock_context_manager(mock_response)
+        )
 
-        result = await repo_manager.get_available_languages("https://github.com/test/wakewords")
+        result = await repo_manager.get_available_languages(
+            "https://github.com/test/wakewords"
+        )
         assert result == ["de", "en", "fr"]
 
     async def test_non_200_raises(self, repo_manager: RepositoryManager) -> None:
         mock_response = AsyncMock()
         mock_response.status = 404
-        repo_manager.session.get = MagicMock(return_value=self._mock_context_manager(mock_response))
+        repo_manager.session.get = MagicMock(
+            return_value=self._mock_context_manager(mock_response)
+        )
 
-        with pytest.raises(HomeAssistantError, match="Failed to fetch repository contents"):
-            await repo_manager.get_available_languages("https://github.com/test/wakewords")
+        with pytest.raises(
+            HomeAssistantError, match="Failed to fetch repository contents"
+        ):
+            await repo_manager.get_available_languages(
+                "https://github.com/test/wakewords"
+            )
 
-    async def test_empty_repo_returns_empty(self, repo_manager: RepositoryManager) -> None:
+    async def test_empty_repo_returns_empty(
+        self, repo_manager: RepositoryManager
+    ) -> None:
         mock_response = AsyncMock()
         mock_response.status = 200
-        mock_response.json = AsyncMock(return_value=[{"name": "README.md", "type": "file"}])
-        repo_manager.session.get = MagicMock(return_value=self._mock_context_manager(mock_response))
+        mock_response.json = AsyncMock(
+            return_value=[{"name": "README.md", "type": "file"}]
+        )
+        repo_manager.session.get = MagicMock(
+            return_value=self._mock_context_manager(mock_response)
+        )
 
-        result = await repo_manager.get_available_languages("https://github.com/test/wakewords")
+        result = await repo_manager.get_available_languages(
+            "https://github.com/test/wakewords"
+        )
         assert result == []
 
 
@@ -201,9 +233,21 @@ class TestInstallWakewords:
 
             # Patch constants and download to use our temp zip
             with (
-                patch("custom_components.wakeword_installer.repository_manager.WAKEWORD_INSTALL_PATH", str(install_path)),
-                patch.object(repo_manager, "_download_file", new_callable=AsyncMock) as mock_dl,
+                patch(
+                    "custom_components.wakeword_installer.repository_manager.WAKEWORD_INSTALL_PATH",
+                    str(install_path),
+                ),
+                patch.object(
+                    repo_manager, "_get_download_urls", new_callable=AsyncMock
+                ) as mock_get_urls,
+                patch.object(
+                    repo_manager, "_download_file", new_callable=AsyncMock
+                ) as mock_dl,
             ):
+                mock_get_urls.return_value = [
+                    "https://github.com/test/wakewords/archive/refs/heads/main.zip"
+                ]
+
                 # Make _download_file copy our pre-built zip to the expected path
                 async def fake_download(url, dest):
                     shutil.copy2(zip_path, dest)
@@ -271,14 +315,19 @@ class TestInstallWakewords:
 class TestRemoveWakewords:
     """Test wakeword removal."""
 
-    async def test_remove_specific_languages(self, repo_manager: RepositoryManager) -> None:
+    async def test_remove_specific_languages(
+        self, repo_manager: RepositoryManager
+    ) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             install_path = Path(tmpdir)
             # Files in format: {repo_name}_{language}_{original_name}
             (install_path / "test-repo_en_hey.tflite").write_bytes(b"x")
             (install_path / "test-repo_de_hallo.tflite").write_bytes(b"x")
 
-            with patch("custom_components.wakeword_installer.repository_manager.WAKEWORD_INSTALL_PATH", str(install_path)):
+            with patch(
+                "custom_components.wakeword_installer.repository_manager.WAKEWORD_INSTALL_PATH",
+                str(install_path),
+            ):
                 await repo_manager.remove_wakewords("test-repo", ["en"])
 
             remaining = list(install_path.glob("*.tflite"))
@@ -293,7 +342,10 @@ class TestRemoveWakewords:
             (install_path / "test-repo_de_hallo.tflite").write_bytes(b"x")
             (install_path / "other-repo_en_hi.tflite").write_bytes(b"x")
 
-            with patch("custom_components.wakeword_installer.repository_manager.WAKEWORD_INSTALL_PATH", str(install_path)):
+            with patch(
+                "custom_components.wakeword_installer.repository_manager.WAKEWORD_INSTALL_PATH",
+                str(install_path),
+            ):
                 await repo_manager.remove_wakewords("test-repo", languages=None)
 
             remaining = list(install_path.glob("*.tflite"))
@@ -305,7 +357,9 @@ class TestRemoveWakewords:
 class TestGetInstalledWakewords:
     """Test listing installed wakewords."""
 
-    async def test_returns_grouped_by_language(self, repo_manager: RepositoryManager) -> None:
+    async def test_returns_grouped_by_language(
+        self, repo_manager: RepositoryManager
+    ) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             install_path = Path(tmpdir)
             # Files in format: {repo_name}_{language}_{original_name}
@@ -313,7 +367,10 @@ class TestGetInstalledWakewords:
             (install_path / "repo_en_hi.tflite").write_bytes(b"x")
             (install_path / "repo_de_hallo.tflite").write_bytes(b"x")
 
-            with patch("custom_components.wakeword_installer.repository_manager.WAKEWORD_INSTALL_PATH", str(install_path)):
+            with patch(
+                "custom_components.wakeword_installer.repository_manager.WAKEWORD_INSTALL_PATH",
+                str(install_path),
+            ):
                 result = await repo_manager.get_installed_wakewords()
 
             assert "en" in result
@@ -321,14 +378,24 @@ class TestGetInstalledWakewords:
             assert len(result["en"]) == 2
             assert len(result["de"]) == 1
 
-    async def test_empty_dir_returns_empty(self, repo_manager: RepositoryManager) -> None:
+    async def test_empty_dir_returns_empty(
+        self, repo_manager: RepositoryManager
+    ) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
-            with patch("custom_components.wakeword_installer.repository_manager.WAKEWORD_INSTALL_PATH", str(tmpdir)):
+            with patch(
+                "custom_components.wakeword_installer.repository_manager.WAKEWORD_INSTALL_PATH",
+                str(tmpdir),
+            ):
                 result = await repo_manager.get_installed_wakewords()
             assert result == {}
 
-    async def test_nonexistent_dir_returns_empty(self, repo_manager: RepositoryManager) -> None:
-        with patch("custom_components.wakeword_installer.repository_manager.WAKEWORD_INSTALL_PATH", "/nonexistent/path"):
+    async def test_nonexistent_dir_returns_empty(
+        self, repo_manager: RepositoryManager
+    ) -> None:
+        with patch(
+            "custom_components.wakeword_installer.repository_manager.WAKEWORD_INSTALL_PATH",
+            "/nonexistent/path",
+        ):
             result = await repo_manager.get_installed_wakewords()
         assert result == {}
 
@@ -337,7 +404,9 @@ class TestGetInstalledWakewords:
 class TestZipSlipProtection:
     """Test that zip-slip attacks are prevented."""
 
-    async def test_malicious_path_is_skipped(self, repo_manager: RepositoryManager) -> None:
+    async def test_malicious_path_is_skipped(
+        self, repo_manager: RepositoryManager
+    ) -> None:
         """Verify that zip entries with path traversal are skipped."""
         with tempfile.TemporaryDirectory() as tmpdir:
             install_path = Path(tmpdir) / "openwakeword"
@@ -350,9 +419,21 @@ class TestZipSlipProtection:
                 zf.writestr("repo-main/en/../../etc/evil.tflite", b"evil")
 
             with (
-                patch("custom_components.wakeword_installer.repository_manager.WAKEWORD_INSTALL_PATH", str(install_path)),
-                patch.object(repo_manager, "_download_file", new_callable=AsyncMock) as mock_dl,
+                patch(
+                    "custom_components.wakeword_installer.repository_manager.WAKEWORD_INSTALL_PATH",
+                    str(install_path),
+                ),
+                patch.object(
+                    repo_manager, "_get_download_urls", new_callable=AsyncMock
+                ) as mock_get_urls,
+                patch.object(
+                    repo_manager, "_download_file", new_callable=AsyncMock
+                ) as mock_dl,
             ):
+                mock_get_urls.return_value = [
+                    "https://github.com/test/wakewords/archive/refs/heads/main.zip"
+                ]
+
                 async def fake_download(url, dest):
                     shutil.copy2(zip_path, dest)
 

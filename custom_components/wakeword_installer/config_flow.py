@@ -1,4 +1,5 @@
 """Config flow for Wakeword Installer integration."""
+
 from __future__ import annotations
 
 import logging
@@ -110,22 +111,25 @@ class WakewordInstallerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     ) -> ConfigFlowResult:
         """Handle language selection step."""
         if user_input is None:
-            language_schema = vol.Schema({
-                vol.Required(CONF_SELECTED_LANGUAGES, default=self.available_languages):
-                cv.multi_select(self.available_languages)
-            })
+            language_schema = vol.Schema(
+                {
+                    vol.Required(
+                        CONF_SELECTED_LANGUAGES, default=self.available_languages
+                    ): cv.multi_select(self.available_languages)
+                }
+            )
             return self.async_show_form(
                 step_id="select_languages",
                 data_schema=language_schema,
                 description_placeholders={
                     "repo_name": self.current_repo[CONF_REPO_NAME],
-                    "available_languages": ", ".join(self.available_languages)
-                }
+                    "available_languages": ", ".join(self.available_languages),
+                },
             )
 
         repo_config = {
             **self.current_repo,
-            CONF_SELECTED_LANGUAGES: user_input[CONF_SELECTED_LANGUAGES]
+            CONF_SELECTED_LANGUAGES: user_input[CONF_SELECTED_LANGUAGES],
         }
         self.repositories.append(repo_config)
 
@@ -138,14 +142,14 @@ class WakewordInstallerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is None:
             return self.async_show_form(
                 step_id="add_more",
-                data_schema=vol.Schema({
-                    vol.Required("add_another", default=False): bool
-                }),
+                data_schema=vol.Schema(
+                    {vol.Required("add_another", default=False): bool}
+                ),
                 description_placeholders={
-                    "current_repos": "\n".join([
-                        "- %s" % repo[CONF_REPO_NAME] for repo in self.repositories
-                    ])
-                }
+                    "current_repos": "\n".join(
+                        ["- %s" % repo[CONF_REPO_NAME] for repo in self.repositories]
+                    )
+                },
             )
 
         if user_input["add_another"]:
@@ -156,8 +160,7 @@ class WakewordInstallerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self._abort_if_unique_id_configured()
 
         return self.async_create_entry(
-            title="Wakeword Installer",
-            data={CONF_REPOSITORIES: self.repositories}
+            title="Wakeword Installer", data={CONF_REPOSITORIES: self.repositories}
         )
 
     @staticmethod
@@ -176,9 +179,7 @@ class WakewordInstallerOptionsFlow(config_entries.OptionsFlow):
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         """Manage the options."""
-        self.repositories = list(
-            self.config_entry.data.get(CONF_REPOSITORIES, [])
-        )
+        self.repositories = list(self.config_entry.data.get(CONF_REPOSITORIES, []))
         return await self.async_step_manage_repos()
 
     async def async_step_manage_repos(
@@ -196,13 +197,19 @@ class WakewordInstallerOptionsFlow(config_entries.OptionsFlow):
 
             return self.async_show_form(
                 step_id="manage_repos",
-                data_schema=vol.Schema({
-                    vol.Optional("action"): vol.In(["add", "remove", "install", "done"]),
-                    vol.Optional("repo_to_remove"): vol.In(repo_list) if len(self.repositories) > 0 else str,
-                }),
+                data_schema=vol.Schema(
+                    {
+                        vol.Optional("action"): vol.In(
+                            ["add", "remove", "install", "done"]
+                        ),
+                        vol.Optional("repo_to_remove"): (
+                            vol.In(repo_list) if len(self.repositories) > 0 else str
+                        ),
+                    }
+                ),
                 description_placeholders={
                     "repo_list": "\n".join(["- %s" % repo for repo in repo_list])
-                }
+                },
             )
 
         action = user_input.get("action")
@@ -222,8 +229,7 @@ class WakewordInstallerOptionsFlow(config_entries.OptionsFlow):
         """Add a new repository."""
         if user_input is None:
             return self.async_show_form(
-                step_id="add_repo",
-                data_schema=STEP_USER_DATA_SCHEMA
+                step_id="add_repo", data_schema=STEP_USER_DATA_SCHEMA
             )
 
         errors = {}
@@ -247,13 +253,12 @@ class WakewordInstallerOptionsFlow(config_entries.OptionsFlow):
                 new_repo = {
                     CONF_REPO_NAME: repo_name,
                     CONF_REPO_URL: repo_url,
-                    CONF_SELECTED_LANGUAGES: languages
+                    CONF_SELECTED_LANGUAGES: languages,
                 }
                 self.repositories.append(new_repo)
 
                 self.hass.config_entries.async_update_entry(
-                    self.config_entry,
-                    data={CONF_REPOSITORIES: self.repositories}
+                    self.config_entry, data={CONF_REPOSITORIES: self.repositories}
                 )
             else:
                 errors["base"] = "no_languages_found"
@@ -271,9 +276,7 @@ class WakewordInstallerOptionsFlow(config_entries.OptionsFlow):
 
         if errors:
             return self.async_show_form(
-                step_id="add_repo",
-                data_schema=STEP_USER_DATA_SCHEMA,
-                errors=errors
+                step_id="add_repo", data_schema=STEP_USER_DATA_SCHEMA, errors=errors
             )
 
         return await self.async_step_manage_repos()
@@ -298,13 +301,11 @@ class WakewordInstallerOptionsFlow(config_entries.OptionsFlow):
                 await repo_manager.close()
 
             self.repositories = [
-                repo for repo in self.repositories
-                if repo[CONF_REPO_NAME] != repo_name
+                repo for repo in self.repositories if repo[CONF_REPO_NAME] != repo_name
             ]
 
             self.hass.config_entries.async_update_entry(
-                self.config_entry,
-                data={CONF_REPOSITORIES: self.repositories}
+                self.config_entry, data={CONF_REPOSITORIES: self.repositories}
             )
 
         return await self.async_step_manage_repos()
@@ -320,7 +321,7 @@ class WakewordInstallerOptionsFlow(config_entries.OptionsFlow):
                     await repo_manager.install_wakewords(
                         repo[CONF_REPO_URL],
                         repo[CONF_SELECTED_LANGUAGES],
-                        repo[CONF_REPO_NAME]
+                        repo[CONF_REPO_NAME],
                     )
                 except Exception as err:
                     _LOGGER.error(
@@ -336,5 +337,5 @@ class WakewordInstallerOptionsFlow(config_entries.OptionsFlow):
             data_schema=vol.Schema({}),
             description_placeholders={
                 "message": "Wakewords have been installed successfully!"
-            }
+            },
         )

@@ -1,4 +1,5 @@
 """Tests for the Wakeword Installer config flow."""
+
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -19,7 +20,6 @@ from custom_components.wakeword_installer.const import (
     CONF_SELECTED_LANGUAGES,
     DOMAIN,
 )
-
 
 # --- ConfigFlow tests ---
 
@@ -169,7 +169,10 @@ class TestConfigFlowSelectLanguages:
     async def test_show_form_on_none_input(self) -> None:
         flow = WakewordInstallerConfigFlow()
         flow.hass = MagicMock()
-        flow.current_repo = {CONF_REPO_NAME: "test", CONF_REPO_URL: "https://github.com/t/r"}
+        flow.current_repo = {
+            CONF_REPO_NAME: "test",
+            CONF_REPO_URL: "https://github.com/t/r",
+        }
         flow.available_languages = ["en", "de"]
 
         result = await flow.async_step_select_languages(user_input=None)
@@ -180,7 +183,10 @@ class TestConfigFlowSelectLanguages:
     async def test_selected_languages_stored(self) -> None:
         flow = WakewordInstallerConfigFlow()
         flow.hass = MagicMock()
-        flow.current_repo = {CONF_REPO_NAME: "test", CONF_REPO_URL: "https://github.com/t/r"}
+        flow.current_repo = {
+            CONF_REPO_NAME: "test",
+            CONF_REPO_URL: "https://github.com/t/r",
+        }
         flow.available_languages = ["en", "de", "fr"]
 
         result = await flow.async_step_select_languages(
@@ -262,7 +268,11 @@ class TestOptionsFlowInit:
         flow._config_entry = MagicMock(spec=ConfigEntry)
         flow._config_entry.data = {
             CONF_REPOSITORIES: [
-                {CONF_REPO_NAME: "repo1", CONF_REPO_URL: "https://github.com/t/r", CONF_SELECTED_LANGUAGES: ["en"]}
+                {
+                    CONF_REPO_NAME: "repo1",
+                    CONF_REPO_URL: "https://github.com/t/r",
+                    CONF_SELECTED_LANGUAGES: ["en"],
+                }
             ]
         }
         # Patch config_entry property to return our mock

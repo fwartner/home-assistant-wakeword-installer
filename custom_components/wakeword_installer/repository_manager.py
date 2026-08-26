@@ -1,4 +1,5 @@
 """Repository manager for handling GitHub repositories and wakeword files."""
+
 from __future__ import annotations
 
 import logging
@@ -160,18 +161,14 @@ class RepositoryManager:
                         file_path.unlink()
                         _LOGGER.info("Removed wakeword file: %s", file_path.name)
                     except OSError as err:
-                        _LOGGER.warning(
-                            "Failed to remove file %s: %s", file_path, err
-                        )
+                        _LOGGER.warning("Failed to remove file %s: %s", file_path, err)
             else:
                 for language in languages:
                     pattern = "%s_%s_*.tflite" % (repo_name, language)
                     for file_path in install_path.glob(pattern):
                         try:
                             file_path.unlink()
-                            _LOGGER.info(
-                                "Removed wakeword file: %s", file_path.name
-                            )
+                            _LOGGER.info("Removed wakeword file: %s", file_path.name)
                         except OSError as err:
                             _LOGGER.warning(
                                 "Failed to remove file %s: %s", file_path, err
@@ -199,10 +196,10 @@ class RepositoryManager:
             normalized_url = f"https://{normalized_url}"
 
         parsed = urlparse(normalized_url)
-        if (
-            parsed.scheme not in {"http", "https"}
-            or parsed.netloc.lower() not in {GITHUB_HOST, f"www.{GITHUB_HOST}"}
-        ):
+        if parsed.scheme not in {"http", "https"} or parsed.netloc.lower() not in {
+            GITHUB_HOST,
+            f"www.{GITHUB_HOST}",
+        }:
             raise HomeAssistantError("Invalid GitHub repository URL")
 
         repo_path = parsed.path.strip("/")
@@ -340,9 +337,7 @@ class RepositoryManager:
                         _LOGGER.info("Installed wakeword: %s", new_name)
 
                     except Exception as err:
-                        _LOGGER.warning(
-                            "Failed to install %s: %s", tflite_file, err
-                        )
+                        _LOGGER.warning("Failed to install %s: %s", tflite_file, err)
 
         await self.hass.async_add_executor_job(extract_sync)
 

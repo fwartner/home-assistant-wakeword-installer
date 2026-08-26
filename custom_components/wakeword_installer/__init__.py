@@ -1,4 +1,5 @@
 """The Wakeword Installer integration."""
+
 from __future__ import annotations
 
 import logging
@@ -6,7 +7,12 @@ import logging
 import voluptuous as vol
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant, ServiceCall, ServiceResponse, SupportsResponse
+from homeassistant.core import (
+    HomeAssistant,
+    ServiceCall,
+    ServiceResponse,
+    SupportsResponse,
+)
 from homeassistant.helpers.typing import ConfigType
 import homeassistant.helpers.config_validation as cv
 
@@ -31,19 +37,25 @@ SERVICE_REMOVE_REPOSITORY_WAKEWORDS = "remove_repository_wakewords"
 SERVICE_LIST_INSTALLED = "list_installed"
 SERVICE_REFRESH_REPOSITORIES = "refresh_repositories"
 
-SERVICE_INSTALL_SCHEMA = vol.Schema({
-    vol.Optional("repository"): cv.string,
-    vol.Optional("languages"): vol.All(cv.ensure_list, [cv.string]),
-})
+SERVICE_INSTALL_SCHEMA = vol.Schema(
+    {
+        vol.Optional("repository"): cv.string,
+        vol.Optional("languages"): vol.All(cv.ensure_list, [cv.string]),
+    }
+)
 
-SERVICE_REMOVE_SCHEMA = vol.Schema({
-    vol.Required("repository"): cv.string,
-    vol.Required("languages"): vol.All(cv.ensure_list, [cv.string]),
-})
+SERVICE_REMOVE_SCHEMA = vol.Schema(
+    {
+        vol.Required("repository"): cv.string,
+        vol.Required("languages"): vol.All(cv.ensure_list, [cv.string]),
+    }
+)
 
-SERVICE_REMOVE_REPOSITORY_SCHEMA = vol.Schema({
-    vol.Required("repository"): cv.string,
-})
+SERVICE_REMOVE_REPOSITORY_SCHEMA = vol.Schema(
+    {
+        vol.Required("repository"): cv.string,
+    }
+)
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
@@ -115,7 +127,9 @@ def _register_services(hass: HomeAssistant) -> None:
                     if target_repo and repo[CONF_REPO_NAME] != target_repo:
                         continue
 
-                    languages = target_languages or repo.get(CONF_SELECTED_LANGUAGES, [])
+                    languages = target_languages or repo.get(
+                        CONF_SELECTED_LANGUAGES, []
+                    )
                     if not languages:
                         continue
                     await repo_manager.install_wakewords(

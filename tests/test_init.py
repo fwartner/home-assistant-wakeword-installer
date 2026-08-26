@@ -1,4 +1,5 @@
 """Tests for the Wakeword Installer __init__ module."""
+
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -32,7 +33,9 @@ class TestAsyncSetup:
 class TestAsyncSetupEntry:
     """Test async_setup_entry."""
 
-    async def test_registers_services(self, mock_hass: MagicMock, mock_config_entry: MagicMock) -> None:
+    async def test_registers_services(
+        self, mock_hass: MagicMock, mock_config_entry: MagicMock
+    ) -> None:
         mock_hass.services.has_service = MagicMock(return_value=False)
         with patch("custom_components.wakeword_installer.RepositoryManager"):
             result = await async_setup_entry(mock_hass, mock_config_entry)
@@ -44,7 +47,9 @@ class TestAsyncSetupEntry:
         # 5 services should be registered
         assert mock_hass.services.async_register.call_count == 5
 
-        registered = [call.args[1] for call in mock_hass.services.async_register.call_args_list]
+        registered = [
+            call.args[1] for call in mock_hass.services.async_register.call_args_list
+        ]
         assert SERVICE_INSTALL_WAKEWORDS in registered
         assert SERVICE_REMOVE_WAKEWORDS in registered
         assert SERVICE_REMOVE_REPOSITORY_WAKEWORDS in registered
@@ -69,13 +74,19 @@ class TestAsyncSetupEntry:
         assert result is True
         mock_hass.services.async_register.assert_not_called()
 
-    async def test_stores_entry_data(self, mock_hass: MagicMock, mock_config_entry: MagicMock) -> None:
+    async def test_stores_entry_data(
+        self, mock_hass: MagicMock, mock_config_entry: MagicMock
+    ) -> None:
         with patch("custom_components.wakeword_installer.RepositoryManager"):
             await async_setup_entry(mock_hass, mock_config_entry)
 
-        assert mock_hass.data[DOMAIN][mock_config_entry.entry_id] == mock_config_entry.data
+        assert (
+            mock_hass.data[DOMAIN][mock_config_entry.entry_id] == mock_config_entry.data
+        )
 
-    async def test_forwards_platforms(self, mock_hass: MagicMock, mock_config_entry: MagicMock) -> None:
+    async def test_forwards_platforms(
+        self, mock_hass: MagicMock, mock_config_entry: MagicMock
+    ) -> None:
         with patch("custom_components.wakeword_installer.RepositoryManager"):
             await async_setup_entry(mock_hass, mock_config_entry)
 
@@ -107,7 +118,9 @@ class TestAsyncSetupEntry:
 class TestAsyncUnloadEntry:
     """Test async_unload_entry."""
 
-    async def test_successful_unload_last_entry(self, mock_hass: MagicMock, mock_config_entry: MagicMock) -> None:
+    async def test_successful_unload_last_entry(
+        self, mock_hass: MagicMock, mock_config_entry: MagicMock
+    ) -> None:
         """When last entry is unloaded, services should be removed."""
         mock_hass.data[DOMAIN] = {mock_config_entry.entry_id: mock_config_entry.data}
 
@@ -117,7 +130,9 @@ class TestAsyncUnloadEntry:
         assert mock_config_entry.entry_id not in mock_hass.data[DOMAIN]
         assert mock_hass.services.async_remove.call_count == 5
 
-    async def test_successful_unload_not_last_entry(self, mock_hass: MagicMock, mock_config_entry: MagicMock) -> None:
+    async def test_successful_unload_not_last_entry(
+        self, mock_hass: MagicMock, mock_config_entry: MagicMock
+    ) -> None:
         """When other entries remain, services should NOT be removed."""
         mock_hass.data[DOMAIN] = {
             mock_config_entry.entry_id: mock_config_entry.data,
@@ -130,7 +145,9 @@ class TestAsyncUnloadEntry:
         assert mock_config_entry.entry_id not in mock_hass.data[DOMAIN]
         mock_hass.services.async_remove.assert_not_called()
 
-    async def test_failed_unload_keeps_data(self, mock_hass: MagicMock, mock_config_entry: MagicMock) -> None:
+    async def test_failed_unload_keeps_data(
+        self, mock_hass: MagicMock, mock_config_entry: MagicMock
+    ) -> None:
         mock_hass.data[DOMAIN] = {mock_config_entry.entry_id: mock_config_entry.data}
         mock_hass.config_entries.async_unload_platforms = AsyncMock(return_value=False)
 
@@ -152,8 +169,12 @@ class TestServiceCalls:
                 return c.args[2]
         raise ValueError("Service %s not registered" % service_name)
 
-    async def test_install_wakewords_all_repos(self, mock_hass: MagicMock, mock_config_entry: MagicMock) -> None:
-        with patch("custom_components.wakeword_installer.RepositoryManager") as mock_rm_cls:
+    async def test_install_wakewords_all_repos(
+        self, mock_hass: MagicMock, mock_config_entry: MagicMock
+    ) -> None:
+        with patch(
+            "custom_components.wakeword_installer.RepositoryManager"
+        ) as mock_rm_cls:
             mock_rm = MagicMock()
             mock_rm.install_wakewords = AsyncMock()
             mock_rm.close = AsyncMock()
@@ -169,8 +190,12 @@ class TestServiceCalls:
             mock_rm.install_wakewords.assert_called_once()
             mock_rm.close.assert_called()
 
-    async def test_install_wakewords_specific_repo(self, mock_hass: MagicMock, mock_config_entry: MagicMock) -> None:
-        with patch("custom_components.wakeword_installer.RepositoryManager") as mock_rm_cls:
+    async def test_install_wakewords_specific_repo(
+        self, mock_hass: MagicMock, mock_config_entry: MagicMock
+    ) -> None:
+        with patch(
+            "custom_components.wakeword_installer.RepositoryManager"
+        ) as mock_rm_cls:
             mock_rm = MagicMock()
             mock_rm.install_wakewords = AsyncMock()
             mock_rm.close = AsyncMock()
@@ -185,8 +210,12 @@ class TestServiceCalls:
 
             mock_rm.install_wakewords.assert_called_once()
 
-    async def test_install_wakewords_wrong_repo_skips(self, mock_hass: MagicMock, mock_config_entry: MagicMock) -> None:
-        with patch("custom_components.wakeword_installer.RepositoryManager") as mock_rm_cls:
+    async def test_install_wakewords_wrong_repo_skips(
+        self, mock_hass: MagicMock, mock_config_entry: MagicMock
+    ) -> None:
+        with patch(
+            "custom_components.wakeword_installer.RepositoryManager"
+        ) as mock_rm_cls:
             mock_rm = MagicMock()
             mock_rm.install_wakewords = AsyncMock()
             mock_rm.close = AsyncMock()
@@ -202,8 +231,12 @@ class TestServiceCalls:
             mock_rm.install_wakewords.assert_not_called()
             mock_rm.close.assert_called()
 
-    async def test_remove_wakewords(self, mock_hass: MagicMock, mock_config_entry: MagicMock) -> None:
-        with patch("custom_components.wakeword_installer.RepositoryManager") as mock_rm_cls:
+    async def test_remove_wakewords(
+        self, mock_hass: MagicMock, mock_config_entry: MagicMock
+    ) -> None:
+        with patch(
+            "custom_components.wakeword_installer.RepositoryManager"
+        ) as mock_rm_cls:
             mock_rm = MagicMock()
             mock_rm.remove_wakewords = AsyncMock()
             mock_rm.close = AsyncMock()
@@ -219,15 +252,21 @@ class TestServiceCalls:
             mock_rm.remove_wakewords.assert_called_once_with("test-repo", ["en"])
             mock_rm.close.assert_called()
 
-    async def test_remove_repository_wakewords(self, mock_hass: MagicMock, mock_config_entry: MagicMock) -> None:
-        with patch("custom_components.wakeword_installer.RepositoryManager") as mock_rm_cls:
+    async def test_remove_repository_wakewords(
+        self, mock_hass: MagicMock, mock_config_entry: MagicMock
+    ) -> None:
+        with patch(
+            "custom_components.wakeword_installer.RepositoryManager"
+        ) as mock_rm_cls:
             mock_rm = MagicMock()
             mock_rm.remove_repository_wakewords = AsyncMock()
             mock_rm.close = AsyncMock()
             mock_rm_cls.return_value = mock_rm
 
             await async_setup_entry(mock_hass, mock_config_entry)
-            handler = self._get_service_handler(mock_hass, SERVICE_REMOVE_REPOSITORY_WAKEWORDS)
+            handler = self._get_service_handler(
+                mock_hass, SERVICE_REMOVE_REPOSITORY_WAKEWORDS
+            )
 
             call = MagicMock()
             call.data = {"repository": "test-repo"}
@@ -235,8 +274,12 @@ class TestServiceCalls:
 
             mock_rm.remove_repository_wakewords.assert_called_once_with("test-repo")
 
-    async def test_list_installed(self, mock_hass: MagicMock, mock_config_entry: MagicMock) -> None:
-        with patch("custom_components.wakeword_installer.RepositoryManager") as mock_rm_cls:
+    async def test_list_installed(
+        self, mock_hass: MagicMock, mock_config_entry: MagicMock
+    ) -> None:
+        with patch(
+            "custom_components.wakeword_installer.RepositoryManager"
+        ) as mock_rm_cls:
             mock_rm = MagicMock()
             mock_rm.get_installed_wakewords = AsyncMock(return_value={})
             mock_rm.close = AsyncMock()
@@ -252,8 +295,12 @@ class TestServiceCalls:
             mock_rm.get_installed_wakewords.assert_called_once()
             assert result == {"installed_wakewords": {}}
 
-    async def test_refresh_repositories(self, mock_hass: MagicMock, mock_config_entry: MagicMock) -> None:
-        with patch("custom_components.wakeword_installer.RepositoryManager") as mock_rm_cls:
+    async def test_refresh_repositories(
+        self, mock_hass: MagicMock, mock_config_entry: MagicMock
+    ) -> None:
+        with patch(
+            "custom_components.wakeword_installer.RepositoryManager"
+        ) as mock_rm_cls:
             mock_rm = MagicMock()
             mock_rm.get_available_languages = AsyncMock(return_value=["en", "de"])
             mock_rm.close = AsyncMock()
