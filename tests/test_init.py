@@ -5,6 +5,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from homeassistant.core import SupportsResponse
+
 from custom_components.wakeword_installer import (
     DOMAIN,
     SERVICE_INSTALL_WAKEWORDS,
@@ -48,6 +50,13 @@ class TestAsyncSetupEntry:
         assert SERVICE_REMOVE_REPOSITORY_WAKEWORDS in registered
         assert SERVICE_LIST_INSTALLED in registered
         assert SERVICE_REFRESH_REPOSITORIES in registered
+
+        list_call = next(
+            call
+            for call in mock_hass.services.async_register.call_args_list
+            if call.args[1] == SERVICE_LIST_INSTALLED
+        )
+        assert list_call.kwargs["supports_response"] == SupportsResponse.OPTIONAL
 
     async def test_skips_service_registration_when_already_registered(
         self, mock_hass: MagicMock, mock_config_entry: MagicMock
@@ -238,9 +247,10 @@ class TestServiceCalls:
 
             call = MagicMock()
             call.data = {}
-            await handler(call)
+            result = await handler(call)
 
             mock_rm.get_installed_wakewords.assert_called_once()
+            assert result == {"installed_wakewords": {}}
 
     async def test_refresh_repositories(self, mock_hass: MagicMock, mock_config_entry: MagicMock) -> None:
         with patch("custom_components.wakeword_installer.RepositoryManager") as mock_rm_cls:

@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.exceptions import HomeAssistantError
 
 from custom_components.wakeword_installer.config_flow import (
     WakewordInstallerConfigFlow,
@@ -109,6 +110,56 @@ class TestConfigFlowUser:
 
         assert result["type"] == "form"
         assert result["errors"]["base"] == "unknown"
+
+    async def test_duplicate_repo_shows_already_configured_error(self) -> None:
+        flow = WakewordInstallerConfigFlow()
+        flow.hass = MagicMock()
+        flow.repositories = [
+            {
+                CONF_REPO_NAME: "wakewords",
+                CONF_REPO_URL: "https://github.com/test/wakewords",
+            }
+        ]
+
+        with patch(
+            "custom_components.wakeword_installer.config_flow.RepositoryManager"
+        ) as mock_rm_cls:
+            mock_rm = MagicMock()
+            mock_rm._extract_repo_name = MagicMock(return_value="wakewords")
+            mock_rm.close = AsyncMock()
+            mock_rm_cls.return_value = mock_rm
+
+            result = await flow.async_step_user(
+                user_input={CONF_REPO_URL: "https://github.com/test/wakewords"}
+            )
+
+            mock_rm.get_available_languages.assert_not_called()
+            mock_rm.close.assert_called_once()
+
+        assert result["type"] == "form"
+        assert result["errors"]["base"] == "already_configured"
+
+    async def test_invalid_repo_error_is_mapped(self) -> None:
+        flow = WakewordInstallerConfigFlow()
+        flow.hass = MagicMock()
+
+        with patch(
+            "custom_components.wakeword_installer.config_flow.RepositoryManager"
+        ) as mock_rm_cls:
+            mock_rm = MagicMock()
+            mock_rm._extract_repo_name = MagicMock(return_value="unknown-repo")
+            mock_rm.get_available_languages = AsyncMock(
+                side_effect=HomeAssistantError("Invalid GitHub repository URL")
+            )
+            mock_rm.close = AsyncMock()
+            mock_rm_cls.return_value = mock_rm
+
+            result = await flow.async_step_user(
+                user_input={CONF_REPO_URL: "https://gitlab.com/test/wakewords"}
+            )
+
+        assert result["type"] == "form"
+        assert result["errors"]["base"] == "invalid_repo"
 
 
 @pytest.mark.asyncio
@@ -302,6 +353,38 @@ class TestOptionsFlowAddRepo:
         assert result["step_id"] == "manage_repos"
         assert len(flow.repositories) == 1
         assert flow.repositories[0][CONF_REPO_NAME] == "new-repo"
+
+    async def test_duplicate_repo_shows_already_configured_error(self) -> None:
+        flow = WakewordInstallerOptionsFlow()
+        flow.hass = MagicMock()
+        flow.repositories = [
+            {
+                CONF_REPO_NAME: "new-repo",
+                CONF_REPO_URL: "https://github.com/t/new-repo",
+                CONF_SELECTED_LANGUAGES: ["en"],
+            }
+        ]
+        flow._config_entry = MagicMock()
+        type(flow).config_entry = property(lambda self: self._config_entry)
+
+        with patch(
+            "custom_components.wakeword_installer.config_flow.RepositoryManager"
+        ) as mock_rm_cls:
+            mock_rm = MagicMock()
+            mock_rm._extract_repo_name = MagicMock(return_value="new-repo")
+            mock_rm.close = AsyncMock()
+            mock_rm_cls.return_value = mock_rm
+
+            result = await flow.async_step_add_repo(
+                user_input={CONF_REPO_URL: "https://github.com/t/new-repo"}
+            )
+
+            mock_rm.get_available_languages.assert_not_called()
+            mock_rm.close.assert_called_once()
+
+        assert result["type"] == "form"
+        assert result["step_id"] == "add_repo"
+        assert result["errors"]["base"] == "already_configured"
 
 
 @pytest.mark.asyncio

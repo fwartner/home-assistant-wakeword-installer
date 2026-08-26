@@ -1,6 +1,7 @@
 """Tests for the RepositoryManager."""
 from __future__ import annotations
 
+import shutil
 import tempfile
 import zipfile
 from pathlib import Path
@@ -51,20 +52,46 @@ class TestConvertToApiUrl:
             repo_manager._convert_to_api_url("https://gitlab.com/user/repo")
 
 
-class TestGetDownloadUrl:
-    """Test _get_download_url."""
+@pytest.mark.asyncio
+class TestGetDownloadUrls:
+    """Test _get_download_urls."""
 
-    def test_standard_url(self, repo_manager: RepositoryManager) -> None:
-        result = repo_manager._get_download_url("https://github.com/user/repo")
-        assert result == "https://github.com/user/repo/archive/refs/heads/main.zip"
+    async def test_uses_default_branch_first(
+        self, repo_manager: RepositoryManager
+    ) -> None:
+        with patch.object(
+            repo_manager, "_get_default_branch", new_callable=AsyncMock
+        ) as mock_default_branch:
+            mock_default_branch.return_value = "develop"
+            result = await repo_manager._get_download_urls(
+                "https://github.com/user/repo"
+            )
 
-    def test_url_with_git_suffix(self, repo_manager: RepositoryManager) -> None:
-        result = repo_manager._get_download_url("https://github.com/user/repo.git")
-        assert result == "https://github.com/user/repo/archive/refs/heads/main.zip"
+        assert result == [
+            "https://github.com/user/repo/archive/refs/heads/develop.zip",
+            "https://github.com/user/repo/archive/refs/heads/main.zip",
+            "https://github.com/user/repo/archive/refs/heads/master.zip",
+        ]
 
-    def test_invalid_url_raises(self, repo_manager: RepositoryManager) -> None:
+    async def test_deduplicates_branch_candidates(
+        self, repo_manager: RepositoryManager
+    ) -> None:
+        with patch.object(
+            repo_manager, "_get_default_branch", new_callable=AsyncMock
+        ) as mock_default_branch:
+            mock_default_branch.return_value = "main"
+            result = await repo_manager._get_download_urls(
+                "https://github.com/user/repo.git"
+            )
+
+        assert result == [
+            "https://github.com/user/repo/archive/refs/heads/main.zip",
+            "https://github.com/user/repo/archive/refs/heads/master.zip",
+        ]
+
+    async def test_invalid_url_raises(self, repo_manager: RepositoryManager) -> None:
         with pytest.raises(HomeAssistantError):
-            repo_manager._get_download_url("https://gitlab.com/user/repo")
+            await repo_manager._get_download_urls("https://gitlab.com/user/repo")
 
 
 class TestExtractRepoName:
@@ -81,6 +108,20 @@ class TestExtractRepoName:
 
     def test_unknown_url(self, repo_manager: RepositoryManager) -> None:
         assert repo_manager._extract_repo_name("https://gitlab.com/user/repo") == "unknown-repo"
+
+
+class TestNormalizeRepoPath:
+    """Test _normalize_repo_path."""
+
+    def test_trims_extra_segments(self, repo_manager: RepositoryManager) -> None:
+        assert (
+            repo_manager._normalize_repo_path("https://github.com/user/repo/tree/main")
+            == "user/repo"
+        )
+
+    def test_rejects_invalid_repo_path(self, repo_manager: RepositoryManager) -> None:
+        with pytest.raises(HomeAssistantError, match="Invalid GitHub repository URL"):
+            repo_manager._normalize_repo_path("https://github.com/user")
 
 
 # --- Async operation tests ---
@@ -165,7 +206,6 @@ class TestInstallWakewords:
             ):
                 # Make _download_file copy our pre-built zip to the expected path
                 async def fake_download(url, dest):
-                    import shutil
                     shutil.copy2(zip_path, dest)
 
                 mock_dl.side_effect = fake_download
@@ -183,6 +223,48 @@ class TestInstallWakewords:
             # Format: {repo_name}_{language}_{original_name}
             assert "test-repo_en_hey_jarvis.tflite" in names
             assert "test-repo_de_hallo_jarvis.tflite" in names
+
+    async def test_install_falls_back_when_first_branch_download_fails(
+        self, repo_manager: RepositoryManager
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            install_path = Path(tmpdir) / "openwakeword"
+            zip_path = Path(tmpdir) / "repo.zip"
+            with zipfile.ZipFile(zip_path, "w") as zf:
+                zf.writestr("repo-main/en/hey_jarvis.tflite", b"fake-model-en")
+
+            with (
+                patch(
+                    "custom_components.wakeword_installer.repository_manager.WAKEWORD_INSTALL_PATH",
+                    str(install_path),
+                ),
+                patch.object(
+                    repo_manager, "_get_download_urls", new_callable=AsyncMock
+                ) as mock_get_urls,
+                patch.object(
+                    repo_manager, "_download_file", new_callable=AsyncMock
+                ) as mock_download,
+            ):
+                mock_get_urls.return_value = [
+                    "https://github.com/test/wakewords/archive/refs/heads/develop.zip",
+                    "https://github.com/test/wakewords/archive/refs/heads/main.zip",
+                ]
+
+                async def fake_download(url: str, dest: Path) -> None:
+                    if "develop.zip" in url:
+                        raise HomeAssistantError("download failed")
+                    shutil.copy2(zip_path, dest)
+
+                mock_download.side_effect = fake_download
+
+                await repo_manager.install_wakewords(
+                    "https://github.com/test/wakewords",
+                    ["en"],
+                    "test-repo",
+                )
+
+            installed = sorted(path.name for path in install_path.glob("*.tflite"))
+            assert installed == ["test-repo_en_hey_jarvis.tflite"]
 
 
 @pytest.mark.asyncio
@@ -272,7 +354,6 @@ class TestZipSlipProtection:
                 patch.object(repo_manager, "_download_file", new_callable=AsyncMock) as mock_dl,
             ):
                 async def fake_download(url, dest):
-                    import shutil
                     shutil.copy2(zip_path, dest)
 
                 mock_dl.side_effect = fake_download

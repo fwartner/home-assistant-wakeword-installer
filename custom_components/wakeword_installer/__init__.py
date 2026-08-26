@@ -2,16 +2,21 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
 
 import voluptuous as vol
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.core import HomeAssistant, ServiceCall, ServiceResponse, SupportsResponse
 from homeassistant.helpers.typing import ConfigType
 import homeassistant.helpers.config_validation as cv
 
-from .const import DOMAIN, CONF_REPOSITORIES, CONF_REPO_NAME
+from .const import (
+    CONF_REPO_NAME,
+    CONF_REPO_URL,
+    CONF_REPOSITORIES,
+    CONF_SELECTED_LANGUAGES,
+    DOMAIN,
+)
 from .repository_manager import RepositoryManager
 
 _LOGGER = logging.getLogger(__name__)
@@ -73,7 +78,7 @@ async def _async_install_wakewords(
     try:
         for repo in repositories:
             try:
-                languages = repo.get("selected_languages", [])
+                languages = repo.get(CONF_SELECTED_LANGUAGES, [])
                 if not languages:
                     continue
                 _LOGGER.info(
@@ -82,7 +87,7 @@ async def _async_install_wakewords(
                     languages,
                 )
                 await repo_manager.install_wakewords(
-                    repo["repo_url"], languages, repo[CONF_REPO_NAME]
+                    repo[CONF_REPO_URL], languages, repo[CONF_REPO_NAME]
                 )
             except Exception as err:
                 _LOGGER.error(
@@ -110,11 +115,11 @@ def _register_services(hass: HomeAssistant) -> None:
                     if target_repo and repo[CONF_REPO_NAME] != target_repo:
                         continue
 
-                    languages = target_languages or repo.get(
-                        "selected_languages", []
-                    )
+                    languages = target_languages or repo.get(CONF_SELECTED_LANGUAGES, [])
+                    if not languages:
+                        continue
                     await repo_manager.install_wakewords(
-                        repo["repo_url"], languages, repo[CONF_REPO_NAME]
+                        repo[CONF_REPO_URL], languages, repo[CONF_REPO_NAME]
                     )
 
         except Exception as err:
@@ -145,14 +150,16 @@ def _register_services(hass: HomeAssistant) -> None:
         finally:
             await repo_manager.close()
 
-    async def list_installed_service(call: ServiceCall) -> None:
+    async def list_installed_service(call: ServiceCall) -> ServiceResponse:
         """Handle list installed wakewords service call."""
         repo_manager = RepositoryManager(hass)
         try:
             installed = await repo_manager.get_installed_wakewords()
             _LOGGER.info("Installed wakewords: %s", installed)
+            return {"installed_wakewords": installed}
         except Exception as err:
             _LOGGER.error("Failed to list installed wakewords: %s", err)
+            return {"installed_wakewords": {}}
         finally:
             await repo_manager.close()
 
@@ -164,7 +171,7 @@ def _register_services(hass: HomeAssistant) -> None:
                 repositories = entry_data.get(CONF_REPOSITORIES, [])
                 for repo in repositories:
                     languages = await repo_manager.get_available_languages(
-                        repo["repo_url"]
+                        repo[CONF_REPO_URL]
                     )
                     _LOGGER.info(
                         "Available languages for %s: %s",
@@ -195,7 +202,10 @@ def _register_services(hass: HomeAssistant) -> None:
         schema=SERVICE_REMOVE_REPOSITORY_SCHEMA,
     )
     hass.services.async_register(
-        DOMAIN, SERVICE_LIST_INSTALLED, list_installed_service
+        DOMAIN,
+        SERVICE_LIST_INSTALLED,
+        list_installed_service,
+        supports_response=SupportsResponse.OPTIONAL,
     )
     hass.services.async_register(
         DOMAIN, SERVICE_REFRESH_REPOSITORIES, refresh_repositories_service

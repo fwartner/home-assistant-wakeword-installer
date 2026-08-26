@@ -30,6 +30,7 @@
     },
     "error": {
       "cannot_connect": "Verbindung zum Repository nicht möglich. Bitte überprüfen Sie die URL und Ihre Internetverbindung.",
+      "already_configured": "Dieses Repository ist bereits konfiguriert.",
       "invalid_repo": "Ungültiges Repository oder keine Wakeword-Dateien gefunden. Stellen Sie sicher, dass das Repository .tflite-Dateien in Sprachunterverzeichnissen enthält.",
       "no_languages_found": "Keine Sprachordner im Repository gefunden. Das Repository sollte Unterverzeichnisse mit .tflite-Dateien enthalten.",
       "unknown": "Ein unerwarteter Fehler ist aufgetreten. Bitte versuchen Sie es später erneut."
@@ -66,6 +67,7 @@
     },
     "error": {
       "cannot_connect": "Verbindung zum Repository nicht möglich. Bitte überprüfen Sie die URL und Ihre Internetverbindung.",
+      "already_configured": "Dieses Repository ist bereits konfiguriert.",
       "invalid_repo": "Ungültiges Repository oder keine Wakeword-Dateien gefunden. Stellen Sie sicher, dass das Repository .tflite-Dateien in Sprachunterverzeichnissen enthält.",
       "no_languages_found": "Keine Sprachordner im Repository gefunden. Das Repository sollte Unterverzeichnisse mit .tflite-Dateien enthalten.",
       "unknown": "Ein unerwarteter Fehler ist aufgetreten. Bitte versuchen Sie es später erneut."

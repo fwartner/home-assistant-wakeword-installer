@@ -16,7 +16,13 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
 import homeassistant.helpers.config_validation as cv
 
-from .const import DOMAIN, CONF_REPOSITORIES, CONF_REPO_URL, CONF_REPO_NAME, CONF_SELECTED_LANGUAGES
+from .const import (
+    CONF_REPO_NAME,
+    CONF_REPO_URL,
+    CONF_REPOSITORIES,
+    CONF_SELECTED_LANGUAGES,
+    DOMAIN,
+)
 from .repository_manager import RepositoryManager
 
 _LOGGER = logging.getLogger(__name__)
@@ -33,11 +39,23 @@ class WakewordInstallerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     VERSION = 1
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the config flow."""
-        self.repositories = []
-        self.current_repo = {}
-        self.available_languages = []
+        self.repositories: list[dict[str, Any]] = []
+        self.current_repo: dict[str, Any] = {}
+        self.available_languages: list[str] = []
+
+    @staticmethod
+    def _repo_exists(
+        repositories: list[dict[str, Any]], repo_name: str, repo_url: str
+    ) -> bool:
+        """Check whether repository already exists by name or URL."""
+        normalized_url = repo_url.rstrip("/")
+        return any(
+            repo.get(CONF_REPO_NAME) == repo_name
+            or str(repo.get(CONF_REPO_URL, "")).rstrip("/") == normalized_url
+            for repo in repositories
+        )
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
@@ -54,6 +72,12 @@ class WakewordInstallerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         repo_manager = RepositoryManager(self.hass)
         try:
             repo_name = repo_manager._extract_repo_name(repo_url)
+            if self._repo_exists(self.repositories, repo_name, repo_url):
+                errors["base"] = "already_configured"
+                return self.async_show_form(
+                    step_id="user", data_schema=STEP_USER_DATA_SCHEMA, errors=errors
+                )
+
             languages = await repo_manager.get_available_languages(repo_url)
 
             if not languages:
@@ -66,8 +90,11 @@ class WakewordInstallerConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 self.available_languages = languages
                 return await self.async_step_select_languages()
 
-        except HomeAssistantError:
-            errors["base"] = "cannot_connect"
+        except HomeAssistantError as err:
+            if "Invalid GitHub repository URL" in str(err):
+                errors["base"] = "invalid_repo"
+            else:
+                errors["base"] = "cannot_connect"
         except Exception:
             _LOGGER.exception("Unexpected exception")
             errors["base"] = "unknown"
@@ -179,15 +206,15 @@ class WakewordInstallerOptionsFlow(config_entries.OptionsFlow):
             )
 
         action = user_input.get("action")
-
-        if action == "add":
-            return await self.async_step_add_repo()
-        elif action == "remove":
-            return await self.async_step_remove_repo(user_input)
-        elif action == "install":
-            return await self.async_step_install_wakewords()
-        else:
-            return self.async_create_entry(title="", data={})
+        match action:
+            case "add":
+                return await self.async_step_add_repo()
+            case "remove":
+                return await self.async_step_remove_repo(user_input)
+            case "install":
+                return await self.async_step_install_wakewords()
+            case _:
+                return self.async_create_entry(title="", data={})
 
     async def async_step_add_repo(
         self, user_input: dict[str, Any] | None = None
@@ -204,6 +231,16 @@ class WakewordInstallerOptionsFlow(config_entries.OptionsFlow):
         repo_manager = RepositoryManager(self.hass)
         try:
             repo_name = repo_manager._extract_repo_name(repo_url)
+            if WakewordInstallerConfigFlow._repo_exists(
+                self.repositories, repo_name, repo_url
+            ):
+                errors["base"] = "already_configured"
+                return self.async_show_form(
+                    step_id="add_repo",
+                    data_schema=STEP_USER_DATA_SCHEMA,
+                    errors=errors,
+                )
+
             languages = await repo_manager.get_available_languages(repo_url)
 
             if languages:
@@ -221,7 +258,13 @@ class WakewordInstallerOptionsFlow(config_entries.OptionsFlow):
             else:
                 errors["base"] = "no_languages_found"
 
+        except HomeAssistantError as err:
+            if "Invalid GitHub repository URL" in str(err):
+                errors["base"] = "invalid_repo"
+            else:
+                errors["base"] = "cannot_connect"
         except Exception:
+            _LOGGER.exception("Unexpected exception while adding repository")
             errors["base"] = "unknown"
         finally:
             await repo_manager.close()

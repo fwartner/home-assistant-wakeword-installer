@@ -30,6 +30,7 @@
     },
     "error": {
       "cannot_connect": "Unable to connect to the repository. Please check the URL and your internet connection.",
+      "already_configured": "This repository is already configured.",
       "invalid_repo": "Invalid repository or no wakeword files found. Please ensure the repository contains .tflite files in language subdirectories.",
       "no_languages_found": "No language folders found in repository. The repository should contain subdirectories with .tflite files.",
       "unknown": "An unexpected error occurred. Please try again later."
@@ -66,6 +67,7 @@
     },
     "error": {
       "cannot_connect": "Unable to connect to the repository. Please check the URL and your internet connection.",
+      "already_configured": "This repository is already configured.",
       "invalid_repo": "Invalid repository or no wakeword files found. Please ensure the repository contains .tflite files in language subdirectories.",
       "no_languages_found": "No language folders found in repository. The repository should contain subdirectories with .tflite files.",
       "unknown": "An unexpected error occurred. Please try again later."
