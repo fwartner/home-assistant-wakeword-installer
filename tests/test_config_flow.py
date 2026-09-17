@@ -368,3 +368,11 @@ class TestOptionsFlowInstallWakewords:
 
         assert result["type"] == "form"
         assert result["step_id"] == "install_complete"
+
+    async def test_install_complete_creates_entry(self) -> None:
+        """install_complete step must create an entry — not raise UnknownStep."""
+        flow = WakewordInstallerOptionsFlow()
+
+        result = await flow.async_step_install_complete(user_input={})
+
+        assert result["type"] == "create_entry"
