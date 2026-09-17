@@ -295,3 +295,9 @@ class WakewordInstallerOptionsFlow(config_entries.OptionsFlow):
                 "message": "Wakewords have been installed successfully!"
             }
         )
+
+    async def async_step_install_complete(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Acknowledge installation completion and finish the options flow."""
+        return self.async_create_entry(title="", data={})
